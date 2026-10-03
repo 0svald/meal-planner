@@ -51,10 +51,12 @@ export function isoWeekId (date) {
 
 // --- merge and defaults ----------------------------------------------------
 
-// Merge the three Drive files into the single object of docs/schema.md.
-// `plans` comes from plans.json; until that file exists, from family-data.json.
-export function mergeData ({ catalog = {}, family = {}, plans = null } = {}) {
+// Merge the Drive files into the single object of docs/schema.md.
+// `plans` comes from plans.json and `pantry` from pantry.json (both written by
+// the app); until those files exist, from family-data.json.
+export function mergeData ({ catalog = {}, family = {}, plans = null, pantry = null } = {}) {
   const planList = plans && Array.isArray(plans.plans) ? plans.plans : family.plans
+  const staples = pantry && Array.isArray(pantry.pantry) ? pantry.pantry : family.pantry
   return applyDefaults({
     schema_version: catalog.schema_version || family.schema_version || SCHEMA_VERSION,
     family: family.family || {},
@@ -62,7 +64,7 @@ export function mergeData ({ catalog = {}, family = {}, plans = null } = {}) {
     school_menus: catalog.school_menus || [],
     rules: family.rules || [],
     plans: planList || [],
-    pantry: family.pantry || []
+    pantry: staples || []
   })
 }
 

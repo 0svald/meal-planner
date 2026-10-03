@@ -123,3 +123,10 @@ test('isoWeekId', () => {
   assert.equal(isoWeekId('2027-01-01'), '2026-w53') // Friday of 2026's last week
   assert.equal(isoWeekId('2024-12-30'), '2025-w01')
 })
+
+test('mergeData takes the pantry from pantry.json once it exists', () => {
+  const family = fixture('family-data')
+  assert.deepEqual(mergeData({ family }).pantry, family.pantry)
+  assert.deepEqual(mergeData({ family, pantry: { pantry: ['riso', 'sale'] } }).pantry, ['riso', 'sale'])
+  assert.deepEqual(mergeData({ family, pantry: { pantry: [] } }).pantry, [])
+})

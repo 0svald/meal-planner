@@ -105,7 +105,12 @@ function messageFor (body) {
 
 function setData (cache) {
   const r = cache.resources
-  state.data = mergeData({ catalog: r.catalog.data, family: r.family.data, plans: r.plans.data })
+  state.data = mergeData({
+    catalog: r.catalog.data,
+    family: r.family.data,
+    plans: r.plans.data,
+    pantry: r.pantry ? r.pantry.data : null
+  })
   state.plansUpdatedAt = (r.plans.data && r.plans.data.updated_at) || null
   state.fetchedAt = cache.fetchedAt
   state.email = cache.email || null
@@ -513,8 +518,83 @@ function renderShopping (draft, saved) {
     checked.size
       ? el('button', { type: 'button', class: 'link-btn', onclick: () => { setChecks(weekStart, []); render() } }, 'Togli tutte le spunte')
       : null,
-    el('p', { class: 'small muted' }, 'Le quantità compaiono solo quando la ricetta le indica.')
+    el('p', { class: 'small muted' }, 'Le quantità compaiono solo quando la ricetta le indica.'),
+    renderPantry(list)
   ].filter(Boolean))
+}
+
+// --- pantry ------------------------------------------------------------------
+
+let pantryBusy = false
+
+async function changePantry (change, done) {
+  if (pantryBusy) return
+  pantryBusy = true
+  showStatus('Aggiorno la dispensa…', 'info')
+  const body = await api.updatePantry(change)
+  pantryBusy = false
+  if (body.ok) {
+    const cache = api.DEMO ? null : readJSON(STORE.cache)
+    if (cache) {
+      cache.resources.pantry = { data: body.data, updated_at: body.updated_at }
+      writeJSON(STORE.cache, cache)
+      setData(cache)
+      hideStatus()
+      render()
+    } else {
+      await refresh()
+    }
+    if (done) done()
+    return
+  }
+  if (['offline', 'unreachable', 'signin_unavailable'].includes(body.error)) {
+    showStatus('Non riesco a cambiare la dispensa adesso: riprova quando sei online.', 'error')
+  } else {
+    showStatus(messageFor(body), 'error')
+  }
+}
+
+function renderPantry (list) {
+  const staples = state.data.pantry.slice().sort((a, b) => a.localeCompare(b, 'it'))
+  const have = new Set(staples.map(n => n.toLowerCase().trim()))
+  const suggestions = list.items.map(i => i.name).filter(n => !have.has(n.toLowerCase().trim()))
+  const input = el('input', {
+    name: 'item',
+    type: 'text',
+    list: 'pantry-suggest',
+    placeholder: 'Aggiungi, es. riso',
+    autocomplete: 'off',
+    maxlength: '60',
+    'aria-label': 'Voce da aggiungere alla dispensa'
+  })
+  const add = event => {
+    event.preventDefault()
+    const name = input.value.trim()
+    if (!name) return
+    if (have.has(name.toLowerCase())) {
+      input.value = ''
+      return
+    }
+    changePantry({ add: [name] }, () => { input.value = '' })
+  }
+  return el('section', { class: 'aisle pantry', id: 'pantry' },
+    el('h2', {}, 'Dispensa'),
+    el('p', { class: 'small muted' }, 'Cose sempre in casa: non finiscono nella lista della spesa.'),
+    staples.length
+      ? el('ul', { class: 'pantry-items' }, staples.map(name => el('li', {},
+        el('span', {}, name),
+        el('button', {
+          type: 'button',
+          class: 'remove',
+          'aria-label': `Togli ${name} dalla dispensa`,
+          onclick: () => changePantry({ remove: [name] })
+        }, '×'))))
+      : el('p', { class: 'small muted' }, 'La dispensa è vuota.'),
+    el('form', { class: 'pantry-add', onsubmit: add },
+      input,
+      el('button', { type: 'submit', class: 'secondary' }, 'Aggiungi')),
+    el('datalist', { id: 'pantry-suggest' }, suggestions.map(n => el('option', { value: n })))
+  )
 }
 
 function showTab (tab) {

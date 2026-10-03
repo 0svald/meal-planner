@@ -43,8 +43,9 @@ Folder `family-meal-planner/` in the owner's Drive:
 | File | Written by | Content |
 | --- | --- | --- |
 | `catalog.json` | skill only | `dishes`, `school_menus` (~48 KB) |
-| `family-data.json` | skill only | `family`, `rules`, `pantry` |
-| `plans.json` | **app only** | `plans` (to be created by phase C) |
+| `family-data.json` | skill only | `family`, `rules`, `pantry` (initial pantry only) |
+| `plans.json` | **app only** | `plans` |
+| `pantry.json` | **app only** | `pantry`: staples kept out of the shopping list; once it exists it replaces `family-data.json`'s `pantry` |
 | `archive/` | both | previous versions, `<name>-YYYYMMDD-HHMM.json` |
 | `shopping-lists/` | app | one text file per week (optional) |
 

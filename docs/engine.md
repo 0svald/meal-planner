@@ -97,7 +97,8 @@ week shown, and says so when it is not confirmed):
 - grouped by aisle in store order: frutta e verdura, carne, pesce, latte
   formaggi e uova, pane e forno, dispensa, surgelati, altro;
 - pantry staples left out: the name is a pantry item or starts with one
-  ("sale" covers "sale grosso");
+  ("sale" covers "sale grosso"); the pantry is edited in the app (Spesa →
+  Dispensa) and stored in `pantry.json`;
 - takeaway meals skipped (bought ready);
 - **quantities never computed**: a recipe's own `qty`/`unit` is repeated, with
   the dish name when several dishes use the item ("320 g per Pasta e

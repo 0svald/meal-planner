@@ -136,6 +136,16 @@ moves to `archive/` as `spesa-2026-10-05-YYYYMMDD-HHMM.txt`. The text comes from
 `engine/shopping.js`: no conflict check, it is derived from the plan.
 `422 invalid_list` for a non-Monday week or an empty text.
 
+`POST <exec>` with `{"id_token": "…", "action": "updatePantry", "add": ["riso"],
+"remove": ["pepe"]}` changes the pantry (`pantry.json`). The change is applied
+under the lock to the current list, so two people editing at once do not
+overwrite each other; the first change starts from `family-data.json`'s
+`pantry`, which is never written. Names are compared ignoring case and spaces,
+1–60 characters, at most 200 items (`422 invalid_pantry`). Answer:
+`{ok: true, data: <new pantry.json>, updated_at}`; the old copy goes to
+`archive/pantry-YYYYMMDD-HHMM.json`. `GET ?resource=pantry` returns
+`data: null` while the file does not exist.
+
 | `status` | `error` | Meaning |
 | --- | --- | --- |
 | 400 | `bad_json`, `bad_action` | malformed body |

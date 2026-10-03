@@ -1,6 +1,7 @@
 // Data API for menu-famiglia-app.
-// Reads the JSON files of the Drive folder family-meal-planner/ and writes
-// plans.json and the text files in shopping-lists/. No planning logic lives here: identify the caller, read,
+// Reads the JSON files of the Drive folder family-meal-planner/ and writes the
+// app's own files: plans.json, pantry.json and the text files in
+// shopping-lists/. No planning logic lives here: identify the caller, read,
 // validate the shape, write.
 //
 // Script Properties (Project settings > Script properties):
@@ -14,7 +15,8 @@
 var RESOURCES = {
   catalog: 'catalog.json',
   family: 'family-data.json',
-  plans: 'plans.json'
+  plans: 'plans.json',
+  pantry: 'pantry.json'
 };
 
 var TOKEN_ISSUERS = ['accounts.google.com', 'https://accounts.google.com'];
@@ -45,6 +47,7 @@ function doGet(e) {
 // POST body (sent as text/plain to avoid a CORS preflight):
 //   {id_token, action: 'savePlan', plan, base_updated_at}
 //   {id_token, action: 'saveShoppingList', week_start, text}
+//   {id_token, action: 'updatePantry', add: [...], remove: [...]}
 // `base_updated_at` is the `updated_at` of plans.json the app loaded (null if
 // the file did not exist): if someone saved in between, the write is refused
 // with 409 and the app reloads. The last confirmed write wins.
@@ -59,7 +62,8 @@ function doPost(e) {
     var email = authenticate_(body.id_token);
     if (body.action === 'savePlan') return json_(savePlan_(body.plan, body.base_updated_at || null, email));
     if (body.action === 'saveShoppingList') return json_(saveShoppingList_(body.week_start, body.text, email));
-    throw apiError_(400, 'bad_action', 'action must be savePlan or saveShoppingList');
+    if (body.action === 'updatePantry') return json_(updatePantry_(body.add, body.remove, email));
+    throw apiError_(400, 'bad_action', 'action must be savePlan, saveShoppingList or updatePantry');
   } catch (err) {
     return errorOutput_(err);
   }
@@ -121,8 +125,10 @@ function allowedEmails_() {
 function readResource_(name) {
   var file = findFile_(RESOURCES[name]);
   if (!file) {
-    // plans.json is created by the app at the first save.
+    // plans.json and pantry.json are created by the app at the first save;
+    // until pantry.json exists the pantry of family-data.json applies.
     if (name === 'plans') return { data: { schema_version: '1.0', plans: [] }, updated_at: null };
+    if (name === 'pantry') return { data: null, updated_at: null };
     throw apiError_(404, 'not_found', RESOURCES[name] + ' not found in the folder');
   }
   var data;
@@ -148,17 +154,22 @@ function findFile_(fileName) {
   return best;
 }
 
-// Only plans.json is ever written: catalog.json and family-data.json belong
-// to the skill. A save creates a new copy, then moves the old one to archive/
-// as plans-YYYYMMDD-HHMM.json (same convention as the skill).
-function writePlans_(obj) {
-  var name = RESOURCES.plans;
+// Only the app's files are ever written (plans.json, pantry.json):
+// catalog.json and family-data.json belong to the skill. A save creates a new
+// copy, then moves the old one to archive/ as <name>-YYYYMMDD-HHMM.json (same
+// convention as the skill).
+var APP_FILES = { plans: true, pantry: true };
+
+function writeAppFile_(resource, obj) {
+  if (!APP_FILES[resource]) throw new Error('The app never writes ' + resource);
+  var name = RESOURCES[resource];
   var folder = DriveApp.getFolderById(property_('FOLDER_ID'));
   var old = findFile_(name);
   var created = folder.createFile(name, JSON.stringify(obj), 'application/json');
   if (old) {
     old.moveTo(archiveFolder_(folder));
-    old.setName('plans-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd-HHmm') + '.json');
+    old.setName(name.replace(/\.json$/, '') + '-' +
+      Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd-HHmm') + '.json');
   }
   return created;
 }
@@ -198,8 +209,64 @@ function savePlan_(plan, baseUpdatedAt, email) {
       updated_by: email,
       plans: plans
     };
-    writePlans_(next);
+    writeAppFile_('plans', next);
     return { ok: true, action: 'savePlan', email: email, data: next, updated_at: now };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// --- pantry ----------------------------------------------------------------
+// Staples always at home, left out of the shopping list. The app sends the
+// change (items to add and to remove), applied here to the current list under
+// the lock: two people editing at once never overwrite each other. The first
+// change starts from the pantry of family-data.json.
+
+var MAX_PANTRY_ITEMS = 200;
+var MAX_PANTRY_NAME = 60;
+
+function pantryKey_(name) {
+  return String(name).toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function pantryItems_(list, field) {
+  if (list == null) return [];
+  if (!Array.isArray(list)) throw apiError_(422, 'invalid_pantry', field + ' must be a list of names');
+  return list.map(function (x) {
+    var name = typeof x === 'string' ? x.replace(/\s+/g, ' ').trim() : '';
+    if (!name || name.length > MAX_PANTRY_NAME) {
+      throw apiError_(422, 'invalid_pantry', field + ': names must be 1-' + MAX_PANTRY_NAME + ' characters');
+    }
+    return name;
+  });
+}
+
+function updatePantry_(add, remove, email) {
+  var toAdd = pantryItems_(add, 'add');
+  var toRemove = pantryItems_(remove, 'remove').map(pantryKey_);
+  if (!toAdd.length && !toRemove.length) throw apiError_(422, 'invalid_pantry', 'nothing to change');
+
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw apiError_(503, 'busy', 'Another save is in progress, retry');
+  try {
+    var current = readResource_('pantry').data;
+    var items = current && Array.isArray(current.pantry)
+      ? current.pantry
+      : (readResource_('family').data.pantry || []);
+    var keys = {};
+    var next = [];
+    items.concat(toAdd).forEach(function (name) {
+      var key = pantryKey_(name);
+      if (keys[key] || toRemove.indexOf(key) !== -1) return;
+      keys[key] = true;
+      next.push(name);
+    });
+    if (next.length > MAX_PANTRY_ITEMS) throw apiError_(422, 'invalid_pantry', 'too many items');
+    next.sort(function (a, b) { return a.localeCompare(b, 'it'); });
+    var now = new Date().toISOString();
+    var data = { schema_version: '1.0', updated_at: now, updated_by: email, pantry: next };
+    writeAppFile_('pantry', data);
+    return { ok: true, action: 'updatePantry', email: email, data: data, updated_at: now };
   } finally {
     lock.releaseLock();
   }
@@ -333,6 +400,7 @@ function sha256_(text) {
 function checkSetup() {
   console.log('Allowed accounts: ' + allowedEmails_().length);
   console.log('Client id set: ' + Boolean(property_('CLIENT_ID')));
+  console.log('pantry.json is optional: until the first change the pantry of family-data.json applies.');
   Object.keys(RESOURCES).forEach(function (key) {
     var file = findFile_(RESOURCES[key]);
     console.log(RESOURCES[key] + ': ' + (file ? file.getSize() + ' bytes, updated ' + file.getLastUpdated() : 'missing'));
