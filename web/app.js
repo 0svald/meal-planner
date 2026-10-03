@@ -199,14 +199,29 @@ async function refresh ({ retried = false } = {}) {
     }
   }
 
+  if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(cfg.endpoint)) {
+    showStatus('L\'indirizzo del servizio deve iniziare con https://script.google.com/ e finire con /exec (⚙︎).', 'error')
+    return
+  }
+
+  let res
+  try {
+    res = await fetch(`${cfg.endpoint}?resource=all&id_token=${encodeURIComponent(token.value)}`)
+  } catch {
+    // Online but blocked: usually a login page served instead of JSON (CORS refusal).
+    if (state.data) showOffline()
+    else {
+      showStatus('Il servizio non risponde. Se la connessione funziona, controlla che il deployment ' +
+        'dello script sia accessibile a «Chiunque» e che sia stata pubblicata una nuova versione.', 'error')
+    }
+    return
+  }
   let body
   try {
-    const url = `${cfg.endpoint}?resource=all&id_token=${encodeURIComponent(token.value)}`
-    const res = await fetch(url)
     body = await res.json()
   } catch {
-    if (state.data) showOffline()
-    else showStatus('Impossibile contattare il servizio. Controlla la connessione e l\'indirizzo nelle impostazioni.', 'error')
+    showStatus(`Il servizio ha risposto con una pagina inattesa (HTTP ${res.status}). ` +
+      'Controlla l\'indirizzo /exec e pubblica una nuova versione del deployment.', 'error')
     return
   }
 
