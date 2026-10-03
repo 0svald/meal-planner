@@ -142,6 +142,15 @@ export async function savePlan (plan, baseUpdatedAt) {
   }))
 }
 
+export async function saveShoppingList (weekStart, text) {
+  if (DEMO) return { ok: true, file: `shopping-lists/spesa-${weekStart}.txt` }
+  return call((endpoint, idToken) => fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ id_token: idToken, action: 'saveShoppingList', week_start: weekStart, text })
+  }))
+}
+
 // --- demo --------------------------------------------------------------------
 
 const demo = {

@@ -5,7 +5,9 @@ export const STORE = {
   config: 'mf.config',
   token: 'mf.token',
   cache: 'mf.cache.v1',
-  drafts: 'mf.drafts.v1'
+  drafts: 'mf.drafts.v1',
+  checks: 'mf.checks.v1',
+  tab: 'mf.tab'
 }
 
 export function readJSON (key) {

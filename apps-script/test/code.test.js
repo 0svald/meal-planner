@@ -102,3 +102,23 @@ test('doPost refuses bad bodies and unknown actions', () => {
   assert.equal(s.post({ id_token: 'MAMMA', action: 'deleteAll' }).error, 'bad_action')
   assert.equal(s.post({ id_token: 'ZIO', action: 'savePlan', plan: plan() }).status, 403)
 })
+
+test('saveShoppingList writes shopping-lists/spesa-<week>.txt and archives the older copy', () => {
+  const s = setup()
+  const first = s.post({ id_token: 'MAMMA', action: 'saveShoppingList', week_start: '2026-10-05', text: 'Spesa\n- pasta' })
+  assert.equal(first.ok, true, JSON.stringify(first))
+  assert.equal(first.file, 'shopping-lists/spesa-2026-10-05.txt')
+  const lists = s.drive.folders.find(f => f.name === 'shopping-lists')
+  assert.deepEqual(s.fileNames(lists), ['spesa-2026-10-05.txt'])
+  s.post({ id_token: 'PAPA', action: 'saveShoppingList', week_start: '2026-10-05', text: 'Spesa\n- riso' })
+  assert.deepEqual(s.fileNames(lists), ['spesa-2026-10-05.txt'])
+  assert.equal(lists.files()[0].content, 'Spesa\n- riso')
+  assert.match(s.fileNames(s.archive())[0], /^spesa-2026-10-05-\d{8}-\d{4}\.txt$/)
+  assert.deepEqual(s.fileNames(), ['catalog.json', 'family-data.json'])
+})
+
+test('saveShoppingList refuses a bad week or an empty text', () => {
+  const s = setup()
+  assert.equal(s.post({ id_token: 'MAMMA', action: 'saveShoppingList', week_start: '2026-10-06', text: 'x' }).status, 422)
+  assert.equal(s.post({ id_token: 'MAMMA', action: 'saveShoppingList', week_start: '2026-10-05', text: '  ' }).status, 422)
+})

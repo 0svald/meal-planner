@@ -1,6 +1,6 @@
 // Data API for menu-famiglia-app.
 // Reads the JSON files of the Drive folder family-meal-planner/ and writes
-// plans.json. No planning logic lives here: identify the caller, read,
+// plans.json and the text files in shopping-lists/. No planning logic lives here: identify the caller, read,
 // validate the shape, write.
 //
 // Script Properties (Project settings > Script properties):
@@ -44,6 +44,7 @@ function doGet(e) {
 
 // POST body (sent as text/plain to avoid a CORS preflight):
 //   {id_token, action: 'savePlan', plan, base_updated_at}
+//   {id_token, action: 'saveShoppingList', week_start, text}
 // `base_updated_at` is the `updated_at` of plans.json the app loaded (null if
 // the file did not exist): if someone saved in between, the write is refused
 // with 409 and the app reloads. The last confirmed write wins.
@@ -56,8 +57,9 @@ function doPost(e) {
       throw apiError_(400, 'bad_json', 'Body must be JSON sent as text/plain');
     }
     var email = authenticate_(body.id_token);
-    if (body.action !== 'savePlan') throw apiError_(400, 'bad_action', 'action must be savePlan');
-    return json_(savePlan_(body.plan, body.base_updated_at || null, email));
+    if (body.action === 'savePlan') return json_(savePlan_(body.plan, body.base_updated_at || null, email));
+    if (body.action === 'saveShoppingList') return json_(saveShoppingList_(body.week_start, body.text, email));
+    throw apiError_(400, 'bad_action', 'action must be savePlan or saveShoppingList');
   } catch (err) {
     return errorOutput_(err);
   }
@@ -198,6 +200,44 @@ function savePlan_(plan, baseUpdatedAt, email) {
     };
     writePlans_(next);
     return { ok: true, action: 'savePlan', email: email, data: next, updated_at: now };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// --- shopping lists ----------------------------------------------------------
+// One text file per week in shopping-lists/: spesa-<week_start>.txt. The text
+// is built by engine/shopping.js in the app; a newer copy replaces the older,
+// which moves to archive/.
+
+var MAX_LIST_BYTES = 20000;
+
+function saveShoppingList_(weekStart, text, email) {
+  var start = parseDate_(weekStart);
+  if (!start || start.getUTCDay() !== 1) throw apiError_(422, 'invalid_list', 'week_start must be a Monday YYYY-MM-DD');
+  if (typeof text !== 'string' || !text.trim()) throw apiError_(422, 'invalid_list', 'text must be a non-empty string');
+  if (text.length > MAX_LIST_BYTES) throw apiError_(422, 'invalid_list', 'text is too long');
+
+  var folder = DriveApp.getFolderById(property_('FOLDER_ID'));
+  var it = folder.getFoldersByName('shopping-lists');
+  var lists = it.hasNext() ? it.next() : folder.createFolder('shopping-lists');
+  var name = 'spesa-' + weekStart + '.txt';
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw apiError_(503, 'busy', 'Another save is in progress, retry');
+  try {
+    var old = [];
+    var files = lists.getFilesByName(name);
+    while (files.hasNext()) {
+      var f = files.next();
+      if (!f.isTrashed()) old.push(f);
+    }
+    lists.createFile(name, text, 'text/plain');
+    var stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd-HHmm');
+    old.forEach(function (f) {
+      f.moveTo(archiveFolder_(folder));
+      f.setName('spesa-' + weekStart + '-' + stamp + '.txt');
+    });
+    return { ok: true, action: 'saveShoppingList', email: email, file: 'shopping-lists/' + name };
   } finally {
     lock.releaseLock();
   }
