@@ -122,3 +122,29 @@ test('saveShoppingList refuses a bad week or an empty text', () => {
   assert.equal(s.post({ id_token: 'MAMMA', action: 'saveShoppingList', week_start: '2026-10-06', text: 'x' }).status, 422)
   assert.equal(s.post({ id_token: 'MAMMA', action: 'saveShoppingList', week_start: '2026-10-05', text: '  ' }).status, 422)
 })
+
+test('updatePantry starts from family-data, applies adds and removes, archives', () => {
+  const s = loadScript({
+    files: { 'catalog.json': catalog, 'family-data.json': { ...family, pantry: ['sale', 'olio', 'pepe'] } },
+    tokens
+  })
+  assert.equal(s.get({ resource: 'all', id_token: 'MAMMA' }).resources.pantry.data, null)
+  const a = s.post({ id_token: 'MAMMA', action: 'updatePantry', add: ['  Riso ', 'SALE'], remove: ['pepe'] })
+  assert.equal(a.ok, true, JSON.stringify(a))
+  assert.deepEqual(a.data.pantry, ['olio', 'Riso', 'sale'])
+  assert.equal(a.data.updated_by, 'mamma@example.com')
+  const b = s.post({ id_token: 'PAPA', action: 'updatePantry', remove: ['riso'] })
+  assert.deepEqual(b.data.pantry, ['olio', 'sale'])
+  assert.deepEqual(s.fileNames(), ['catalog.json', 'family-data.json', 'pantry.json'])
+  assert.match(s.fileNames(s.archive())[0], /^pantry-\d{8}-\d{4}\.json$/)
+  const familyFile = s.drive.files.find(f => f.name === 'family-data.json')
+  assert.deepEqual(JSON.parse(familyFile.content).pantry, ['sale', 'olio', 'pepe'], 'family-data.json untouched')
+})
+
+test('updatePantry refuses empty or malformed changes', () => {
+  const s = setup()
+  assert.equal(s.post({ id_token: 'MAMMA', action: 'updatePantry' }).status, 422)
+  assert.equal(s.post({ id_token: 'MAMMA', action: 'updatePantry', add: 'riso' }).status, 422)
+  assert.equal(s.post({ id_token: 'MAMMA', action: 'updatePantry', add: ['x'.repeat(61)] }).status, 422)
+  assert.equal(s.post({ id_token: 'ZIO', action: 'updatePantry', add: ['riso'] }).status, 403)
+})

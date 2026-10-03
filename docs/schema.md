@@ -10,10 +10,12 @@ The data is split across three Drive files:
 | `catalog.json` | `dishes`, `school_menus` | skill only |
 | `family-data.json` | `family`, `rules`, `pantry` | skill only |
 | `plans.json` | `plans`, plus `updated_at`, `updated_by` | app only |
+| `pantry.json` | `pantry`, plus `updated_at`, `updated_by` | app only |
 
 `engine/data.js` (`mergeData`) merges them into the single object described here.
 While `plans.json` does not exist yet, `plans` is read from `family-data.json`, where
-the skill used to keep it. The skill's `scripts/validate.py` is the executable version
+the skill used to keep it. Likewise `pantry` comes from `pantry.json`, edited in the
+app, and from `family-data.json` until the first change. The skill's `scripts/validate.py` is the executable version
 of this document; the allowed values live in its `scripts/model.py`.
 A complete, valid example is in `fixtures/`.
 

@@ -125,7 +125,7 @@ async function call (request) {
   }
 }
 
-// GET everything: {ok, email, resources: {catalog, family, plans}}.
+// GET everything: {ok, email, resources: {catalog, family, plans, pantry}}.
 export async function loadAll () {
   if (DEMO) return demo.loadAll()
   return call((endpoint, idToken) => fetch(`${endpoint}?resource=all&id_token=${encodeURIComponent(idToken)}`))
@@ -151,24 +151,51 @@ export async function saveShoppingList (weekStart, text) {
   }))
 }
 
+// Add and remove pantry staples; the server applies the change to its
+// current list, so concurrent edits do not overwrite each other.
+export async function updatePantry ({ add = [], remove = [] }) {
+  if (DEMO) return demo.updatePantry(add, remove)
+  return call((endpoint, idToken) => fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ id_token: idToken, action: 'updatePantry', add, remove })
+  }))
+}
+
 // --- demo --------------------------------------------------------------------
 
 const demo = {
   plans: null,
+  pantry: null,
+  family: null,
 
   async loadAll () {
     const get = name => fetch(`../fixtures/${name}.json`).then(r => r.json())
     const [catalog, family, plans] = await Promise.all([get('catalog'), get('family-data'), get('plans')])
     if (!this.plans) this.plans = { ...plans, updated_at: plans.updated_at || null }
+    this.family = family
     return {
       ok: true,
       email: 'demo@example.com',
       resources: {
         catalog: { data: catalog, updated_at: null },
         family: { data: family, updated_at: null },
-        plans: { data: this.plans, updated_at: this.plans.updated_at }
+        plans: { data: this.plans, updated_at: this.plans.updated_at },
+        pantry: { data: this.pantry, updated_at: this.pantry ? this.pantry.updated_at : null }
       }
     }
+  },
+
+  async updatePantry (add, remove) {
+    const key = n => n.toLowerCase().replace(/\s+/g, ' ').trim()
+    const drop = remove.map(key)
+    const seen = new Set()
+    const items = (this.pantry ? this.pantry.pantry : this.family.pantry).concat(add.map(n => n.trim()))
+      .filter(n => n && !drop.includes(key(n)) && !seen.has(key(n)) && seen.add(key(n)))
+      .sort((a, b) => a.localeCompare(b, 'it'))
+    const now = new Date().toISOString()
+    this.pantry = { schema_version: '1.0', updated_at: now, updated_by: 'demo@example.com', pantry: items }
+    return { ok: true, data: this.pantry, updated_at: now }
   },
 
   async savePlan (plan, baseUpdatedAt) {

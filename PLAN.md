@@ -87,6 +87,12 @@ Done when: a plan chosen on the phone is on Drive, and a second device sees it.
 
 Done when: the list for a confirmed week can be shared to another app in two taps.
 
+## Phase D1 — pantry from the app (requested, done)
+
+The family edits the pantry staples in the Spesa tab. They live in `pantry.json`
+(app only); `family-data.json`'s `pantry` is only the starting point. The skill
+must read `pantry.json` too when it builds a shopping list (skill update, with D2).
+
 ## Phase D2 — recipe wishlist (requested after D)
 
 1. Screen "Ricette da provare": anyone in the family adds a wish (name, optional
