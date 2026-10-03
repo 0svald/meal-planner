@@ -5,22 +5,25 @@ lunches, and turn the plan into a shopping list. Companion to the
 `family-meal-planner` Claude skill. See `CLAUDE.md` for the constraints and
 `PLAN.md` for the build phases.
 
-Status: **phase A** — the canteen lunches of the week, read-only.
+Status: **phase B** — rules engine and weekly proposals (`docs/engine.md`); the
+app still shows the canteen week only.
 
 ## Layout
 
 | Path | What |
 | --- | --- |
 | `engine/` | shared rules engine, pure ES modules (browser + Node) |
+| `scripts/propose.js` | prints the proposals for a week (Node) |
 | `web/` | the static page served by GitHub Pages |
 | `apps-script/` | data API on Google Drive; deployment steps in its README |
 | `fixtures/` | anonymised sample data (public Olbia canteen menu, week 1) |
-| `docs/` | data model, mirrored from the skill |
+| `docs/` | data model (mirrored from the skill) and engine (`engine.md`) |
 
 ## Run locally
 
 ```sh
 npm test                    # engine tests, no dependencies to install
+node scripts/propose.js     # proposals for the fixture week
 python3 -m http.server 8000 # then open http://localhost:8000/web/?demo
 ```
 

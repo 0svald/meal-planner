@@ -219,6 +219,32 @@
           "japanese"
         ]
       }
+    },
+    {
+      "id": "struttura-cena",
+      "type": "meal_structure",
+      "priority": "hard",
+      "origin": "family",
+      "enabled": true,
+      "description": "Nei pasti a casa si cucina un primo, oppure un secondo con contorno, oppure un piatto unico: mai due portate",
+      "params": {
+        "slots": [
+          "lunch",
+          "dinner"
+        ],
+        "patterns": [
+          [
+            "first"
+          ],
+          [
+            "second",
+            "side"
+          ],
+          [
+            "single"
+          ]
+        ]
+      }
     }
   ],
   "pantry": [
