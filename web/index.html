@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#2f6b4f">
+  <title>Menu di famiglia</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- Optional, git-ignored: see config.example.js. A 404 here is expected on GitHub Pages. -->
+  <script src="config.js"></script>
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1>Menu di famiglia</h1>
+    <button id="settings-btn" class="icon-btn" type="button" aria-label="Impostazioni">⚙︎</button>
+  </header>
+
+  <main>
+    <div id="status" class="status" role="status" hidden></div>
+    <div id="signin" class="signin" hidden>
+      <p>Accedi con l'account Google di famiglia per vedere il menu.</p>
+      <div id="signin-button"></div>
+    </div>
+
+    <section id="week" hidden>
+      <nav class="week-nav" aria-label="Settimana">
+        <button id="prev-week" type="button" aria-label="Settimana precedente">‹</button>
+        <div class="week-title">
+          <div id="week-range"></div>
+          <div id="week-cycle" class="muted"></div>
+        </div>
+        <button id="next-week" type="button" aria-label="Settimana successiva">›</button>
+      </nav>
+      <button id="this-week" class="link-btn" type="button" hidden>Torna a questa settimana</button>
+      <p id="week-notice" class="notice" hidden></p>
+      <ol id="days" class="days"></ol>
+    </section>
+  </main>
+
+  <dialog id="settings">
+    <form method="dialog" id="settings-form">
+      <h2>Impostazioni</h2>
+      <label>Indirizzo del servizio (Apps Script)
+        <input name="endpoint" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+      </label>
+      <label>Client ID Google
+        <input name="clientId" type="text" placeholder="….apps.googleusercontent.com" autocomplete="off">
+      </label>
+      <p class="muted small">Restano salvati solo su questo telefono.</p>
+      <p id="settings-account" class="small"></p>
+      <div class="actions">
+        <button type="button" id="signout-btn" class="secondary">Esci</button>
+        <button value="cancel" class="secondary">Annulla</button>
+        <button value="save" class="primary">Salva</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>
