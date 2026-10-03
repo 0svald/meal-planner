@@ -46,11 +46,13 @@ Folder `family-meal-planner/` in the owner's Drive:
 | `family-data.json` | skill only | `family`, `rules`, `pantry` (initial pantry only) |
 | `plans.json` | **app only** | `plans` |
 | `pantry.json` | **app only** | `pantry`: staples kept out of the shopping list; once it exists it replaces `family-data.json`'s `pantry` |
+| `wishlist.json` | **app only** | `wishes`: recipes the family asks to add; the skill adds the dishes with `wish:<id>` in `source.ref` |
 | `archive/` | both | previous versions, `<name>-YYYYMMDD-HHMM.json` |
 | `shopping-lists/` | app | one text file per week (optional) |
 
 Respect the write boundary: the app must never write `catalog.json` or
-`family-data.json`. The Drive API cannot patch a file, so every save uploads a new
+`family-data.json`, and the skill never writes the app's files
+(`docs/skill-integration.md`). The Drive API cannot patch a file, so every save uploads a new
 copy and moves the old one into `archive/`.
 
 The JSON schema, the nutrition taxonomy and the rule types are documented in the

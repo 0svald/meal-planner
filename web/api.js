@@ -162,11 +162,30 @@ export async function updatePantry ({ add = [], remove = [] }) {
   }))
 }
 
+export async function addWish ({ name, url = '', note = '' }) {
+  if (DEMO) return demo.addWish(name, url, note)
+  return post({ action: 'addWish', name, url, note })
+}
+
+export async function removeWish (id) {
+  if (DEMO) return demo.removeWish(id)
+  return post({ action: 'removeWish', id })
+}
+
+function post (body) {
+  return call((endpoint, idToken) => fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ id_token: idToken, ...body })
+  }))
+}
+
 // --- demo --------------------------------------------------------------------
 
 const demo = {
   plans: null,
   pantry: null,
+  wishlist: null,
   family: null,
 
   async loadAll () {
@@ -181,9 +200,27 @@ const demo = {
         catalog: { data: catalog, updated_at: null },
         family: { data: family, updated_at: null },
         plans: { data: this.plans, updated_at: this.plans.updated_at },
-        pantry: { data: this.pantry, updated_at: this.pantry ? this.pantry.updated_at : null }
+        pantry: { data: this.pantry, updated_at: this.pantry ? this.pantry.updated_at : null },
+        wishlist: { data: this.wishlist, updated_at: this.wishlist ? this.wishlist.updated_at : null }
       }
     }
+  },
+
+  saveWishes (wishes) {
+    const now = new Date().toISOString()
+    this.wishlist = { schema_version: '1.0', updated_at: now, updated_by: 'demo@example.com', wishes }
+    return { ok: true, data: this.wishlist, updated_at: now }
+  },
+
+  async addWish (name, url, note) {
+    const wish = { id: `w-demo-${Date.now().toString(36)}`, name: name.trim(), added_by: 'demo@example.com', added_at: new Date().toISOString() }
+    if (url.trim()) wish.url = url.trim()
+    if (note.trim()) wish.note = note.trim()
+    return { ...this.saveWishes([...(this.wishlist ? this.wishlist.wishes : []), wish]), wish }
+  },
+
+  async removeWish (id) {
+    return this.saveWishes((this.wishlist ? this.wishlist.wishes : []).filter(w => w.id !== id))
   },
 
   async updatePantry (add, remove) {

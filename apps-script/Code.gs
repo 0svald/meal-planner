@@ -1,7 +1,7 @@
 // Data API for menu-famiglia-app.
 // Reads the JSON files of the Drive folder family-meal-planner/ and writes the
-// app's own files: plans.json, pantry.json and the text files in
-// shopping-lists/. No planning logic lives here: identify the caller, read,
+// app's own files: plans.json, pantry.json, wishlist.json and the text files
+// in shopping-lists/. No planning logic lives here: identify the caller, read,
 // validate the shape, write.
 //
 // Script Properties (Project settings > Script properties):
@@ -16,7 +16,8 @@ var RESOURCES = {
   catalog: 'catalog.json',
   family: 'family-data.json',
   plans: 'plans.json',
-  pantry: 'pantry.json'
+  pantry: 'pantry.json',
+  wishlist: 'wishlist.json'
 };
 
 var TOKEN_ISSUERS = ['accounts.google.com', 'https://accounts.google.com'];
@@ -48,6 +49,8 @@ function doGet(e) {
 //   {id_token, action: 'savePlan', plan, base_updated_at}
 //   {id_token, action: 'saveShoppingList', week_start, text}
 //   {id_token, action: 'updatePantry', add: [...], remove: [...]}
+//   {id_token, action: 'addWish', name, url?, note?}
+//   {id_token, action: 'removeWish', id}
 // `base_updated_at` is the `updated_at` of plans.json the app loaded (null if
 // the file did not exist): if someone saved in between, the write is refused
 // with 409 and the app reloads. The last confirmed write wins.
@@ -63,7 +66,9 @@ function doPost(e) {
     if (body.action === 'savePlan') return json_(savePlan_(body.plan, body.base_updated_at || null, email));
     if (body.action === 'saveShoppingList') return json_(saveShoppingList_(body.week_start, body.text, email));
     if (body.action === 'updatePantry') return json_(updatePantry_(body.add, body.remove, email));
-    throw apiError_(400, 'bad_action', 'action must be savePlan, saveShoppingList or updatePantry');
+    if (body.action === 'addWish') return json_(addWish_(body, email));
+    if (body.action === 'removeWish') return json_(removeWish_(body.id, email));
+    throw apiError_(400, 'bad_action', 'unknown action');
   } catch (err) {
     return errorOutput_(err);
   }
@@ -128,7 +133,7 @@ function readResource_(name) {
     // plans.json and pantry.json are created by the app at the first save;
     // until pantry.json exists the pantry of family-data.json applies.
     if (name === 'plans') return { data: { schema_version: '1.0', plans: [] }, updated_at: null };
-    if (name === 'pantry') return { data: null, updated_at: null };
+    if (name === 'pantry' || name === 'wishlist') return { data: null, updated_at: null };
     throw apiError_(404, 'not_found', RESOURCES[name] + ' not found in the folder');
   }
   var data;
@@ -154,11 +159,11 @@ function findFile_(fileName) {
   return best;
 }
 
-// Only the app's files are ever written (plans.json, pantry.json):
+// Only the app's files are ever written (plans.json, pantry.json, wishlist.json):
 // catalog.json and family-data.json belong to the skill. A save creates a new
 // copy, then moves the old one to archive/ as <name>-YYYYMMDD-HHMM.json (same
 // convention as the skill).
-var APP_FILES = { plans: true, pantry: true };
+var APP_FILES = { plans: true, pantry: true, wishlist: true };
 
 function writeAppFile_(resource, obj) {
   if (!APP_FILES[resource]) throw new Error('The app never writes ' + resource);
@@ -270,6 +275,70 @@ function updatePantry_(add, remove, email) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// --- wishlist --------------------------------------------------------------
+// Recipes the family would like added to the catalog. The skill reads this
+// file, adds the dishes to catalog.json with "wish:<id>" in source.ref, and
+// never writes it: the app shows a wish as added when a dish refers to it.
+
+var MAX_WISHES = 200;
+
+function text_(value, field, max, required) {
+  var t = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
+  if (value != null && typeof value !== 'string') throw apiError_(422, 'invalid_wish', field + ' must be text');
+  if (required && !t) throw apiError_(422, 'invalid_wish', field + ' is required');
+  if (t.length > max) throw apiError_(422, 'invalid_wish', field + ' is longer than ' + max + ' characters');
+  return t;
+}
+
+function changeWishlist_(email, change) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw apiError_(503, 'busy', 'Another save is in progress, retry');
+  try {
+    var current = readResource_('wishlist').data;
+    var wishes = change(current && Array.isArray(current.wishes) ? current.wishes.slice() : []);
+    var now = new Date().toISOString();
+    var data = { schema_version: '1.0', updated_at: now, updated_by: email, wishes: wishes };
+    writeAppFile_('wishlist', data);
+    return { ok: true, email: email, data: data, updated_at: now };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function addWish_(body, email) {
+  var wish = { name: text_(body.name, 'name', 80, true) };
+  var url = text_(body.url, 'url', 500, false);
+  if (url) {
+    if (!/^https?:\/\/\S+$/i.test(url)) throw apiError_(422, 'invalid_wish', 'url must start with http:// or https://');
+    wish.url = url;
+  }
+  var note = text_(body.note, 'note', 300, false);
+  if (note) wish.note = note;
+  var now = new Date();
+  wish.id = 'w-' + Utilities.formatDate(now, 'UTC', 'yyyyMMdd') + '-' + Utilities.getUuid().slice(0, 6);
+  wish.added_by = email;
+  wish.added_at = now.toISOString();
+  var out = changeWishlist_(email, function (wishes) {
+    if (wishes.length >= MAX_WISHES) throw apiError_(422, 'invalid_wish', 'the list is full');
+    wishes.push(wish);
+    return wishes;
+  });
+  out.action = 'addWish';
+  out.wish = wish;
+  return out;
+}
+
+function removeWish_(id, email) {
+  if (typeof id !== 'string' || !id) throw apiError_(422, 'invalid_wish', 'id is required');
+  var out = changeWishlist_(email, function (wishes) {
+    var kept = wishes.filter(function (w) { return w.id !== id; });
+    if (kept.length === wishes.length) throw apiError_(404, 'not_found', 'No wish with this id');
+    return kept;
+  });
+  out.action = 'removeWish';
+  return out;
 }
 
 // --- shopping lists ----------------------------------------------------------

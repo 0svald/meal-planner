@@ -146,6 +146,14 @@ overwrite each other; the first change starts from `family-data.json`'s
 `archive/pantry-YYYYMMDD-HHMM.json`. `GET ?resource=pantry` returns
 `data: null` while the file does not exist.
 
+`POST <exec>` with `{"id_token": "…", "action": "addWish", "name": "…", "url":
+"https://…", "note": "…"}` adds a recipe to `wishlist.json` (`url` and `note`
+optional; name ≤ 80, url ≤ 500 and http(s) only, note ≤ 300 characters); the
+answer carries the new `wish` with its `id`, `added_by`, `added_at`.
+`{"action": "removeWish", "id": "…"}` removes one (`404` if unknown). Both are
+applied under the lock to the current list, old copy to
+`archive/wishlist-YYYYMMDD-HHMM.json`; `422 invalid_wish` on bad input.
+
 | `status` | `error` | Meaning |
 | --- | --- | --- |
 | 400 | `bad_json`, `bad_action` | malformed body |

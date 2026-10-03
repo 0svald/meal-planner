@@ -93,7 +93,7 @@ The family edits the pantry staples in the Spesa tab. They live in `pantry.json`
 (app only); `family-data.json`'s `pantry` is only the starting point. The skill
 must read `pantry.json` too when it builds a shopping list (skill update, with D2).
 
-## Phase D2 — recipe wishlist (requested after D)
+## Phase D2 — recipe wishlist (requested after D, done in the app)
 
 1. Screen "Ricette da provare": anyone in the family adds a wish (name, optional
    link, optional note) or removes one; the list shows who asked and the status.
@@ -104,7 +104,8 @@ must read `pantry.json` too when it builds a shopping list (skill update, with D
    classification, and after the family's "salva" adds the dishes to
    `catalog.json` with the wish id in `source.ref`. The app shows a wish as
    "aggiunta al catalogo" when a dish refers to it: the skill never writes
-   `wishlist.json`. Needs a skill update (outside this repo).
+   `wishlist.json`. Needs a skill update (outside this repo): the text to add
+   is in `docs/skill-integration.md`, together with reading `pantry.json`.
 4. Sharing a link straight into the app (Web Share Target) comes with phase E,
    Android only.
 
