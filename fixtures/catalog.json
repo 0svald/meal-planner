@@ -1,0 +1,1040 @@
+{
+  "schema_version": "1.0",
+  "dishes": [
+    {
+      "id": "zuppa-legumi-pasta",
+      "name": "Zuppa o passato di fagioli o ceci con pasta o crostini",
+      "source": {
+        "type": "school",
+        "ref": "Menu invernale Comune di Olbia 2025-26"
+      },
+      "course": "first",
+      "allergens": [
+        "celery",
+        "gluten",
+        "milk",
+        "soy",
+        "mustard",
+        "sesame"
+      ],
+      "ingredients": [
+        {
+          "name": "fagioli o ceci",
+          "aisle": "pantry"
+        },
+        {
+          "name": "pasta",
+          "aisle": "pantry"
+        },
+        {
+          "name": "sedano",
+          "aisle": "produce"
+        }
+      ],
+      "nutrition": {
+        "carbs": [
+          "legumes",
+          "cereals"
+        ],
+        "cereals": [
+          {
+            "type": "wheat",
+            "whole": false
+          }
+        ],
+        "proteins": [
+          "legumes"
+        ],
+        "fats": [
+          "evo_oil"
+        ],
+        "vegetables": {
+          "present": true,
+          "form": "cooked"
+        },
+        "confidence": "medium"
+      },
+      "cookable_at_home": true,
+      "prep_minutes": 40,
+      "tags": [
+        "zuppa"
+      ],
+      "verified": false
+    },
+    {
+      "id": "panada-suina",
+      "name": "Panada di carne suina",
+      "source": {
+        "type": "school",
+        "ref": "Menu invernale Comune di Olbia 2025-26"
+      },
+      "course": "single",
+      "allergens": [
+        "gluten"
+      ],
+      "ingredients": [
+        {
+          "name": "carne suina",
+          "aisle": "meat"
+        },
+        {
+          "name": "farina",
+          "aisle": "pantry"
+        }
+      ],
+      "nutrition": {
+        "carbs": [
+          "cereals"
+        ],
+        "cereals": [
+          {
+            "type": "wheat",
+            "whole": false
+          }
+        ],
+        "proteins": [
+          "red_meat"
+        ],
+        "fats": [
+          "butter_cream"
+        ],
+        "vegetables": {
+          "present": false
+        },
+        "confidence": "medium"
+      },
+      "cookable_at_home": true,
+      "tags": [
+        "sarda"
+      ],
+      "verified": false
+    },
+    {
+      "id": "insalata-mista",
+      "name": "Insalata mista di verdure crude di stagione",
+      "source": {
+        "type": "school",
+        "ref": "Menu invernale Comune di Olbia 2025-26"
+      },
+      "course": "side",
+      "allergens": [],
+      "ingredients": [
+        {
+          "name": "verdure di stagione",
+          "aisle": "produce"
+        }
+      ],
+      "nutrition": {
+        "carbs": [],
+        "cereals": [],
+        "proteins": [],
+        "fats": [
+          "evo_oil"
+        ],
+        "vegetables": {
+          "present": true,
+          "form": "raw"
+        },
+        "confidence": "high"
+      },
+      "cookable_at_home": true,
+      "prep_minutes": 10,
+      "tags": [],
+      "verified": false
+    },
+    {
+      "id": "pane",
+      "name": "Pane",
+      "source": {
+        "type": "school",
+        "ref": "Menu invernale Comune di Olbia 2025-26"
+      },
+      "course": "bread",
+      "allergens": [
+        "gluten"
+      ],
+      "ingredients": [],
+      "cookable_at_home": true,
+      "tags": [],
+      "verified": false
+    },
+    {
+      "id": "frutta-stagione",
+      "name": "Frutta di stagione",
+      "source": {
+        "type": "school",
+        "ref": "Menu invernale Comune di Olbia 2025-26"
+      },
+      "course": "fruit",
+      "allergens": [],
+      "ingredients": [],
+      "cookable_at_home": true,
+      "tags": [],
+      "verified": false
+    },
+    {
+      "id": "risotto-pomodoro",
+      "name": "Risotto al pomodoro",
+      "source": {
+        "type": "school",
+        "ref": "Menu invernale Comune di Olbia 2025-26"
+      },
+      "course": "first",
+      "allergens": [
+        "celery",
+        "milk"
+      ],
+      "ingredients": [
+        {
+          "name": "riso",
+          "aisle": "pantry"
+        },
+        {
+          "name": "passata di pomodoro",
+          "aisle": "pantry"
+        }
+      ],
+      "nutrition": {
+        "carbs": [
+          "cereals"
+        ],
+        "cereals": [
+          {
+            "type": "rice",
+            "whole": false
+          }
+        ],
+        "proteins": [],
+        "fats": [
+          "evo_oil"
+        ],
+        "vegetables": {
+          "present": true,
+          "form": "cooked"
+        },
+        "confidence": "high"
+      },
+      "cookable_at_home": true,
+      "prep_minutes": 30,
+      "tags": [],
+      "verified": false
+    },
+    {
+      "id": "uovo-sodo",
+      "name": "Uovo sodo",
+      "source": {
+        "type": "school",
+        "ref": "Menu invernale Comune di Olbia 2025-26"
+      },
+      "course": "second",
+      "allergens": [
+        "eggs"
+      ],
+      "ingredients": [
+        {
+          "name": "uova",
+          "aisle": "dairy"
+        }
+      ],
+      "nutrition": {
+        "carbs": [],
+        "cereals": [],
+        "proteins": [
+          "eggs"
+        ],
+        "fats": [],
+        "vegetables": {
+          "present": false
+        },
+        "confidence": "high"
+      },
+      "cookable_at_home": true,
+      "prep_minutes": 10,
+      "tags": [],
+      "verified": false
+    },
+    {
+      "id": "frittata",
+      "name": "Frittata",
+      "source": {
+        "type": "school",
+        "ref": "Menu invernale Comune di Olbia 2025-26"
+      },
+      "course": "second",
+      "allergens": [
+        "eggs",
+        "milk"
+      ],
+      "ingredients": [
+        {
+          "name": "uova",
+          "aisle": "dairy"
+        },
+        {
+          "name": "formaggio grattugiato",
+          "aisle": "dairy"
+        }
+      ],
+      "nutrition": {
+        "carbs": [],
+        "cereals": [],
+        "proteins": [
+          "eggs",
+          "cheese"
+        ],
+        "fats": [
+          "evo_oil"
+        ],
+        "vegetables": {
+          "present": false
+        },
+        "confidence": "medium"
+      },
+      "cookable_at_home": true,
+      "prep_minutes": 15,
+      "tags": [],
+      "verified": false
+    },
+    {
+      "id": "uova-strapazzate",
+      "name": "Uova strapazzate",
+      "source": {
+        "type": "school",
+        "ref": "Menu invernale Comune di Olbia 2025-26"
+      },
+      "course": "second",
+      "allergens": [
+        "eggs",
+        "milk"
+      ],
+      "ingredients": [
+        {
+          "name": "uova",
+          "aisle": "dairy"
+        },
+        {
+          "name": "latte",
+          "aisle": "dairy"
+        }
+      ],
+      "nutrition": {
+        "carbs": [],
+        "cereals": [],
+        "proteins": [
+          "eggs"
+        ],
+        "fats": [
+          "butter_cream"
+        ],
+        "vegetables": {
+          "present": false
+        },
+        "confidence": "medium"
+      },
+      "cookable_at_home": true,
+      "prep_minutes": 10,
+      "tags": [],
+      "verified": false
+    },
+    {
+      "id": "carote-vapore",
+      "name": "Carote al vapore",
+      "source": {
+        "type": "school",
+        "ref": "Menu invernale Comune di Olbia 2025-26"
+      },
+      "course": "side",
+      "allergens": [],
+      "ingredients": [
+        {
+          "name": "carote",
+          "aisle": "produce"
+        }
+      ],
+      "nutrition": {
+        "carbs": [],
+        "cereals": [],
+        "proteins": [],
+        "fats": [
+          "evo_oil"
+        ],
+        "vegetables": {
+          "present": true,
+          "form": "cooked"
+        },
+        "confidence": "high"
+      },
+      "cookable_at_home": true,
+      "prep_minutes": 15,
+      "tags": [],
+      "verified": false
+    },
+    {
+      "id": "lasagne-forno",
+      "name": "Lasagne al forno",
+      "source": {
+        "type": "school",
+        "ref": "Menu invernale Comune di Olbia 2025-26"
+      },
+      "course": "first",
+      "allergens": [
+        "gluten",
+        "eggs",
+        "milk",
+        "celery"
+      ],
+      "ingredients": [
+        {
+          "name": "sfoglia per lasagne",
+          "aisle": "pantry"
+        },
+        {
+          "name": "macinato di manzo",
+          "aisle": "meat"
+        },
+        {
+          "name": "besciamella",
+          "aisle": "dairy"
+        }
+      ],
+      "nutrition": {
+        "carbs": [
+          "cereals"
+        ],
+        "cereals": [
+          {
+            "type": "wheat",
+            "whole": false
+          }
+        ],
+        "proteins": [
+          "red_meat",
+          "cheese"
+        ],
+        "fats": [
+          "butter_cream",
+          "aged_cheese"
+        ],
+        "vegetables": {
+          "present": true,
+          "form": "cooked"
+        },
+        "confidence": "medium"
+      },
+      "cookable_at_home": true,
+      "prep_minutes": 75,
+      "tags": [],
+      "verified": false
+    },
+    {
+      "id": "formaggio-tenero",
+      "name": "Formaggio tenero (dolce sardo, mozzarella o peretta sarda)",
+      "source": {
+        "type": "school",
+        "ref": "Menu invernale Comune di Olbia 2025-26"
+      },
+      "course": "second",
+      "allergens": [
+        "milk"
+      ],
+      "ingredients": [
+        {
+          "name": "formaggio fresco",
+          "aisle": "dairy"
+        }
+      ],
+      "nutrition": {
+        "carbs": [],
+        "cereals": [],
+        "proteins": [
+          "cheese"
+        ],
+        "fats": [],
+        "vegetables": {
+          "present": false
+        },
+        "confidence": "high"
+      },
+      "cookable_at_home": true,
+      "prep_minutes": 0,
+      "tags": [],
+      "verified": false
+    },
+    {
+      "id": "insalata-verde",
+      "name": "Insalata verde di stagione",
+      "source": {
+        "type": "school",
+        "ref": "Menu invernale Comune di Olbia 2025-26"
+      },
+      "course": "side",
+      "allergens": [],
+      "ingredients": [
+        {
+          "name": "insalata",
+          "aisle": "produce"
+        }
+      ],
+      "nutrition": {
+        "carbs": [],
+        "cereals": [],
+        "proteins": [],
+        "fats": [
+          "evo_oil"
+        ],
+        "vegetables": {
+          "present": true,
+          "form": "raw"
+        },
+        "confidence": "high"
+      },
+      "cookable_at_home": true,
+      "prep_minutes": 5,
+      "tags": [],
+      "verified": false
+    },
+    {
+      "id": "pizza-margherita",
+      "name": "Pizza margherita",
+      "source": {
+        "type": "school",
+        "ref": "Menu invernale Comune di Olbia 2025-26"
+      },
+      "course": "single",
+      "allergens": [
+        "gluten",
+        "milk"
+      ],
+      "ingredients": [
+        {
+          "name": "impasto per pizza",
+          "aisle": "bakery"
+        },
+        {
+          "name": "mozzarella",
+          "aisle": "dairy"
+        },
+        {
+          "name": "passata di pomodoro",
+          "aisle": "pantry"
+        }
+      ],
+      "nutrition": {
+        "carbs": [
+          "cereals"
+        ],
+        "cereals": [
+          {
+            "type": "wheat",
+            "whole": false
+          }
+        ],
+        "proteins": [
+          "cheese"
+        ],
+        "fats": [
+          "evo_oil"
+        ],
+        "vegetables": {
+          "present": true,
+          "form": "cooked"
+        },
+        "confidence": "high"
+      },
+      "cookable_at_home": true,
+      "prep_minutes": 40,
+      "tags": [
+        "pizza"
+      ],
+      "verified": false
+    },
+    {
+      "id": "prosciutto-tacchino",
+      "name": "Prosciutto di tacchino",
+      "source": {
+        "type": "school",
+        "ref": "Menu invernale Comune di Olbia 2025-26"
+      },
+      "course": "second",
+      "allergens": [],
+      "ingredients": [
+        {
+          "name": "prosciutto di tacchino",
+          "aisle": "meat"
+        }
+      ],
+      "nutrition": {
+        "carbs": [],
+        "cereals": [],
+        "proteins": [
+          "processed_meat"
+        ],
+        "fats": [],
+        "vegetables": {
+          "present": false
+        },
+        "confidence": "high"
+      },
+      "cookable_at_home": true,
+      "prep_minutes": 0,
+      "tags": [],
+      "verified": false
+    },
+    {
+      "id": "gnocchi-pomodoro",
+      "name": "Gnocchi di patate al pomodoro",
+      "source": {
+        "type": "school",
+        "ref": "Menu invernale Comune di Olbia 2025-26"
+      },
+      "course": "first",
+      "allergens": [
+        "gluten",
+        "celery",
+        "milk"
+      ],
+      "ingredients": [
+        {
+          "name": "gnocchi di patate",
+          "aisle": "pantry"
+        },
+        {
+          "name": "passata di pomodoro",
+          "aisle": "pantry"
+        }
+      ],
+      "nutrition": {
+        "carbs": [
+          "tubers",
+          "cereals"
+        ],
+        "cereals": [
+          {
+            "type": "wheat",
+            "whole": false
+          }
+        ],
+        "proteins": [],
+        "fats": [
+          "evo_oil"
+        ],
+        "vegetables": {
+          "present": true,
+          "form": "cooked"
+        },
+        "confidence": "high"
+      },
+      "cookable_at_home": true,
+      "prep_minutes": 20,
+      "tags": [],
+      "verified": false
+    },
+    {
+      "id": "pasta-pomodoro",
+      "name": "Pasta al pomodoro",
+      "source": {
+        "type": "school",
+        "ref": "Menu invernale Comune di Olbia 2025-26"
+      },
+      "course": "first",
+      "allergens": [
+        "gluten",
+        "celery",
+        "milk"
+      ],
+      "ingredients": [
+        {
+          "name": "pasta",
+          "aisle": "pantry"
+        },
+        {
+          "name": "passata di pomodoro",
+          "aisle": "pantry"
+        }
+      ],
+      "nutrition": {
+        "carbs": [
+          "cereals"
+        ],
+        "cereals": [
+          {
+            "type": "wheat",
+            "whole": false
+          }
+        ],
+        "proteins": [],
+        "fats": [
+          "evo_oil"
+        ],
+        "vegetables": {
+          "present": true,
+          "form": "cooked"
+        },
+        "confidence": "high"
+      },
+      "cookable_at_home": true,
+      "prep_minutes": 20,
+      "tags": [],
+      "verified": false
+    },
+    {
+      "id": "bastoncini-merluzzo",
+      "name": "Bastoncini di merluzzo al forno",
+      "source": {
+        "type": "school",
+        "ref": "Menu invernale Comune di Olbia 2025-26"
+      },
+      "course": "second",
+      "allergens": [
+        "fish",
+        "gluten",
+        "eggs"
+      ],
+      "ingredients": [
+        {
+          "name": "filetti di merluzzo",
+          "aisle": "fish"
+        },
+        {
+          "name": "pangrattato",
+          "aisle": "pantry"
+        },
+        {
+          "name": "uova",
+          "aisle": "dairy"
+        }
+      ],
+      "nutrition": {
+        "carbs": [
+          "cereals"
+        ],
+        "cereals": [
+          {
+            "type": "wheat",
+            "whole": false
+          }
+        ],
+        "proteins": [
+          "fish"
+        ],
+        "fats": [
+          "evo_oil"
+        ],
+        "vegetables": {
+          "present": false
+        },
+        "confidence": "high"
+      },
+      "cookable_at_home": true,
+      "prep_minutes": 30,
+      "tags": [],
+      "verified": false,
+      "notes": "Preparati in loco con filetti di merluzzo e platessa impanati, cotti solo al forno"
+    },
+    {
+      "id": "pasta-lenticchie",
+      "name": "Pasta e lenticchie",
+      "source": {
+        "type": "personal",
+        "ref": "ricetta di casa"
+      },
+      "course": "single",
+      "allergens": [
+        "gluten",
+        "celery"
+      ],
+      "ingredients": [
+        {
+          "name": "lenticchie secche",
+          "qty": 250,
+          "unit": "g",
+          "aisle": "pantry"
+        },
+        {
+          "name": "pasta corta",
+          "aisle": "pantry"
+        },
+        {
+          "name": "carota",
+          "aisle": "produce"
+        },
+        {
+          "name": "sedano",
+          "aisle": "produce"
+        },
+        {
+          "name": "cipolla",
+          "aisle": "produce"
+        }
+      ],
+      "nutrition": {
+        "carbs": [
+          "cereals",
+          "legumes"
+        ],
+        "cereals": [
+          {
+            "type": "wheat",
+            "whole": false
+          }
+        ],
+        "proteins": [
+          "legumes"
+        ],
+        "fats": [
+          "evo_oil"
+        ],
+        "vegetables": {
+          "present": true,
+          "form": "cooked"
+        },
+        "confidence": "high"
+      },
+      "cookable_at_home": true,
+      "prep_minutes": 40,
+      "tags": [
+        "legumi"
+      ],
+      "verified": false
+    },
+    {
+      "id": "sushi-asporto",
+      "name": "Sushi misto (asporto)",
+      "source": {
+        "type": "takeaway",
+        "ref": "giapponese"
+      },
+      "course": "takeaway",
+      "allergens": [
+        "fish",
+        "soy",
+        "sesame",
+        "gluten"
+      ],
+      "ingredients": [],
+      "nutrition": {
+        "carbs": [
+          "cereals"
+        ],
+        "cereals": [
+          {
+            "type": "rice",
+            "whole": false
+          }
+        ],
+        "proteins": [
+          "fish"
+        ],
+        "fats": [],
+        "vegetables": {
+          "present": false
+        },
+        "confidence": "medium"
+      },
+      "cookable_at_home": false,
+      "tags": [],
+      "verified": false,
+      "cuisine": "japanese"
+    }
+  ],
+  "school_menus": [
+    {
+      "id": "olbia-inverno-2025-26",
+      "name": "Menu invernale Comune di Olbia 2025-26 (estratto: settimana 1)",
+      "school": "Mensa scolastica Comune di Olbia",
+      "season": "winter",
+      "active": true,
+      "cycle_start_date": "2025-09-15",
+      "weeks": [
+        {
+          "week": 1,
+          "days": [
+            {
+              "weekday": "mon",
+              "items": [
+                {
+                  "course": "first",
+                  "options": [
+                    "zuppa-legumi-pasta"
+                  ]
+                },
+                {
+                  "course": "single",
+                  "options": [
+                    "panada-suina"
+                  ]
+                },
+                {
+                  "course": "side",
+                  "options": [
+                    "insalata-mista"
+                  ]
+                },
+                {
+                  "course": "bread",
+                  "options": [
+                    "pane"
+                  ]
+                },
+                {
+                  "course": "fruit",
+                  "options": [
+                    "frutta-stagione"
+                  ]
+                }
+              ]
+            },
+            {
+              "weekday": "tue",
+              "items": [
+                {
+                  "course": "first",
+                  "options": [
+                    "risotto-pomodoro"
+                  ]
+                },
+                {
+                  "course": "second",
+                  "options": [
+                    "uovo-sodo",
+                    "frittata",
+                    "uova-strapazzate"
+                  ]
+                },
+                {
+                  "course": "side",
+                  "options": [
+                    "carote-vapore"
+                  ]
+                },
+                {
+                  "course": "bread",
+                  "options": [
+                    "pane"
+                  ]
+                },
+                {
+                  "course": "fruit",
+                  "options": [
+                    "frutta-stagione"
+                  ]
+                }
+              ]
+            },
+            {
+              "weekday": "wed",
+              "items": [
+                {
+                  "course": "first",
+                  "options": [
+                    "lasagne-forno"
+                  ]
+                },
+                {
+                  "course": "second",
+                  "options": [
+                    "formaggio-tenero"
+                  ],
+                  "portion": 0.5
+                },
+                {
+                  "course": "side",
+                  "options": [
+                    "insalata-verde"
+                  ]
+                },
+                {
+                  "course": "bread",
+                  "options": [
+                    "pane"
+                  ]
+                },
+                {
+                  "course": "fruit",
+                  "options": [
+                    "frutta-stagione"
+                  ]
+                }
+              ]
+            },
+            {
+              "weekday": "thu",
+              "items": [
+                {
+                  "course": "single",
+                  "options": [
+                    "pizza-margherita"
+                  ]
+                },
+                {
+                  "course": "second",
+                  "options": [
+                    "prosciutto-tacchino"
+                  ]
+                },
+                {
+                  "course": "side",
+                  "options": [
+                    "insalata-verde"
+                  ]
+                },
+                {
+                  "course": "bread",
+                  "options": [
+                    "pane"
+                  ]
+                },
+                {
+                  "course": "fruit",
+                  "options": [
+                    "frutta-stagione"
+                  ]
+                }
+              ]
+            },
+            {
+              "weekday": "fri",
+              "items": [
+                {
+                  "course": "first",
+                  "options": [
+                    "gnocchi-pomodoro",
+                    "pasta-pomodoro"
+                  ]
+                },
+                {
+                  "course": "second",
+                  "options": [
+                    "bastoncini-merluzzo"
+                  ]
+                },
+                {
+                  "course": "side",
+                  "options": [
+                    "insalata-mista"
+                  ]
+                },
+                {
+                  "course": "bread",
+                  "options": [
+                    "pane"
+                  ]
+                },
+                {
+                  "course": "fruit",
+                  "options": [
+                    "frutta-stagione"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "Gli allergeni sono quelli riportati sul menu",
+        "Formaggio pecorino o vaccino stagionato almeno 2 mesi senza lisozima da uova"
+      ]
+    }
+  ]
+}

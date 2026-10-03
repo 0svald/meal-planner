@@ -1,0 +1,230 @@
+{
+  "schema_version": "1.0",
+  "family": {
+    "adults": 2,
+    "children": [
+      {
+        "age": 8,
+        "school_lunch": true
+      },
+      {
+        "age": 6,
+        "school_lunch": true
+      }
+    ],
+    "disliked_ingredients": [
+      "peperoni"
+    ]
+  },
+  "rules": [
+    {
+      "id": "crea-legumi",
+      "type": "frequency",
+      "priority": "soft",
+      "origin": "crea",
+      "enabled": true,
+      "description": "Legumi 3 volte a settimana",
+      "params": {
+        "group": "legumes",
+        "applies_to": "children",
+        "min": 3,
+        "target": 3
+      }
+    },
+    {
+      "id": "crea-pesce",
+      "type": "frequency",
+      "priority": "soft",
+      "origin": "crea",
+      "enabled": true,
+      "description": "Pesce 3 volte a settimana",
+      "params": {
+        "group": "fish",
+        "applies_to": "children",
+        "min": 2,
+        "target": 3
+      }
+    },
+    {
+      "id": "crea-carne",
+      "type": "frequency",
+      "priority": "soft",
+      "origin": "crea",
+      "enabled": true,
+      "description": "Carne al massimo 3 volte a settimana",
+      "params": {
+        "group": "meat",
+        "applies_to": "children",
+        "max": 3,
+        "target": 3
+      }
+    },
+    {
+      "id": "crea-carne-rossa",
+      "type": "frequency",
+      "priority": "hard",
+      "origin": "crea",
+      "enabled": true,
+      "description": "Carne rossa al massimo 1 volta a settimana",
+      "params": {
+        "group": "red_meat",
+        "applies_to": "children",
+        "max": 1
+      }
+    },
+    {
+      "id": "crea-carni-lavorate",
+      "type": "frequency",
+      "priority": "soft",
+      "origin": "crea",
+      "enabled": true,
+      "description": "Carni lavorate solo occasionalmente",
+      "params": {
+        "group": "processed_meat",
+        "applies_to": "children",
+        "max": 1
+      }
+    },
+    {
+      "id": "crea-uova",
+      "type": "frequency",
+      "priority": "soft",
+      "origin": "crea",
+      "enabled": true,
+      "description": "Uova 2 volte a settimana",
+      "params": {
+        "group": "eggs",
+        "applies_to": "children",
+        "target": 2,
+        "max": 3
+      }
+    },
+    {
+      "id": "crea-formaggi",
+      "type": "frequency",
+      "priority": "soft",
+      "origin": "crea",
+      "enabled": true,
+      "description": "Formaggi 3 volte a settimana",
+      "params": {
+        "group": "cheese",
+        "applies_to": "children",
+        "target": 3,
+        "max": 4
+      }
+    },
+    {
+      "id": "crea-pizza",
+      "type": "frequency",
+      "priority": "soft",
+      "origin": "crea",
+      "enabled": true,
+      "description": "Pizza al massimo 1 volta a settimana",
+      "params": {
+        "group": "pizza",
+        "applies_to": "children",
+        "max": 1
+      }
+    },
+    {
+      "id": "crea-patate",
+      "type": "frequency",
+      "priority": "soft",
+      "origin": "crea",
+      "enabled": true,
+      "description": "Patate circa 1 volta a settimana",
+      "params": {
+        "group": "potatoes",
+        "applies_to": "children",
+        "target": 1,
+        "max": 2
+      }
+    },
+    {
+      "id": "complemento-pranzo",
+      "type": "complement",
+      "priority": "hard",
+      "origin": "family",
+      "enabled": true,
+      "description": "La proteina del pranzo non si ripete a cena lo stesso giorno",
+      "params": {
+        "groups": [
+          "meat",
+          "fish",
+          "eggs",
+          "cheese",
+          "legumes"
+        ]
+      }
+    },
+    {
+      "id": "no-peperoni",
+      "type": "exclusion",
+      "priority": "hard",
+      "origin": "family",
+      "enabled": true,
+      "description": "Niente peperoni",
+      "params": {
+        "ingredients": [
+          "peperoni"
+        ]
+      }
+    },
+    {
+      "id": "varieta-14-giorni",
+      "type": "variety",
+      "priority": "soft",
+      "origin": "family",
+      "enabled": true,
+      "description": "La stessa ricetta non torna prima di 14 giorni",
+      "params": {
+        "min_days_between_repeats": 14
+      }
+    },
+    {
+      "id": "tempo-feriali",
+      "type": "time_limit",
+      "priority": "hard",
+      "origin": "family",
+      "enabled": true,
+      "description": "Nei giorni feriali preparazione entro 45 minuti",
+      "params": {
+        "max_prep_minutes": 45,
+        "days": [
+          "mon",
+          "tue",
+          "wed",
+          "thu",
+          "fri"
+        ]
+      }
+    },
+    {
+      "id": "asporto-weekend",
+      "type": "takeaway",
+      "priority": "soft",
+      "origin": "family",
+      "enabled": true,
+      "description": "Una cena da asporto nel weekend, a rotazione",
+      "params": {
+        "per_week": 1,
+        "days": [
+          "sat",
+          "sun"
+        ],
+        "slot": "dinner",
+        "rotate_cuisines": [
+          "pizza",
+          "chinese",
+          "japanese"
+        ]
+      }
+    }
+  ],
+  "pantry": [
+    "olio extravergine d'oliva",
+    "sale",
+    "pepe",
+    "aceto"
+  ]
+}
