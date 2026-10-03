@@ -5,6 +5,7 @@
 import { mergeData, canteenWeek, mondayOf, addDays, isoWeekId, WEEKDAYS } from '../engine/data.js'
 import { proposeWeek, evaluatePlan, slotOptions } from '../engine/planner.js'
 import { buildWeek, HOME_SLOTS } from '../engine/week.js'
+import { shoppingList, shoppingText, quantityNote, usesNote } from '../engine/shopping.js'
 import { STORE, readJSON, writeJSON } from './storage.js'
 import * as api from './api.js'
 
@@ -34,7 +35,8 @@ const state = {
   // Local edits by week: { [weekStart]: { plan, dirty, seed } }. Unsaved ones
   // are kept in localStorage so closing the app does not lose them.
   drafts: readJSON(STORE.drafts) || {},
-  sheet: null
+  sheet: null,
+  tab: readJSON(STORE.tab) === 'shopping' ? 'shopping' : 'plan'
 }
 const $ = sel => document.querySelector(sel)
 
@@ -352,8 +354,6 @@ function render () {
   const draft = draftFor(weekStart)
   const saved = savedPlan(weekStart)
   const canteen = canteenWeek(state.data, weekStart)
-  const week = buildWeek(state.data, weekStart, { plan: draft.plan })
-  const { results } = evaluatePlan({ data: state.data, weekStart, plan: draft.plan })
   const t = today()
 
   $('#week').hidden = false
@@ -372,6 +372,14 @@ function render () {
     notice.hidden = false
   }
 
+  $('#tab-plan').setAttribute('aria-selected', String(state.tab === 'plan'))
+  $('#tab-shopping').setAttribute('aria-selected', String(state.tab === 'shopping'))
+  $('#plan-view').hidden = state.tab !== 'plan'
+  $('#shopping-view').hidden = state.tab !== 'shopping'
+  if (state.tab === 'shopping') return renderShopping(draft, saved)
+
+  const week = buildWeek(state.data, weekStart, { plan: draft.plan })
+  const { results } = evaluatePlan({ data: state.data, weekStart, plan: draft.plan })
   $('#plan-status').textContent = planStatusLine(draft, saved)
   $('#discard-btn').hidden = !(draft.dirty && saved)
   renderFeedback(results)
@@ -407,6 +415,112 @@ function showWeek () {
 function moveWeek (delta) {
   state.weekStart = addDays(state.weekStart, 7 * delta)
   showWeek()
+}
+
+// --- shopping list -----------------------------------------------------------
+
+function checksFor (weekStart) {
+  return (readJSON(STORE.checks) || {})[weekStart] || []
+}
+
+function setChecks (weekStart, keys) {
+  const all = readJSON(STORE.checks) || {}
+  // Keep the ticks of the last few weeks only.
+  for (const week of Object.keys(all)) if (week < addDays(weekStart, -28)) delete all[week]
+  if (keys.length) all[weekStart] = keys
+  else delete all[weekStart]
+  writeJSON(STORE.checks, all)
+}
+
+function currentList () {
+  return shoppingList({ data: state.data, plan: draftFor(state.weekStart).plan })
+}
+
+function shareText () {
+  return shoppingText(currentList(), { exclude: checksFor(state.weekStart) })
+}
+
+async function shareList () {
+  const text = shareText()
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'Lista della spesa', text })
+      return
+    } catch (err) {
+      if (err && err.name === 'AbortError') return
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(text)
+    showStatus('Lista copiata: incollala dove vuoi.', 'info')
+  } catch {
+    showStatus('Non riesco a condividere la lista da questo browser.', 'error')
+  }
+}
+
+async function saveListToDrive () {
+  showStatus('Salvataggio della lista…', 'info')
+  const body = await api.saveShoppingList(state.weekStart, shareText())
+  if (body.ok) showStatus(`Lista salvata su Drive (${body.file}).`, 'info')
+  else if (['offline', 'unreachable', 'signin_unavailable'].includes(body.error)) showStatus('Non riesco a salvare adesso: riprova quando sei online.', 'error')
+  else showStatus(messageFor(body), 'error')
+}
+
+function renderShopping (draft, saved) {
+  const weekStart = state.weekStart
+  const list = currentList()
+  const checked = new Set(checksFor(weekStart))
+  const toBuy = list.items.filter(i => !checked.has(i.key)).length
+
+  let note = null
+  if (draft.dirty || !saved) note = 'La lista segue la settimana mostrata, che ha modifiche non salvate.'
+  else if (saved.status !== 'confirmed') note = 'La settimana è ancora una bozza: la lista può cambiare.'
+
+  const toggle = key => {
+    const next = new Set(checksFor(weekStart))
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    setChecks(weekStart, [...next])
+    render()
+  }
+
+  const item = i => {
+    const q = quantityNote(i)
+    return el('li', { class: checked.has(i.key) ? 'item done' : 'item' },
+      el('label', {},
+        el('input', { type: 'checkbox', checked: checked.has(i.key), onchange: () => toggle(i.key) }),
+        el('span', { class: 'item-text' },
+          el('span', { class: 'item-name' }, i.name),
+          q ? el('span', { class: 'item-qty' }, q) : null,
+          el('span', { class: 'item-uses' }, usesNote(i)))))
+  }
+
+  const skipped = []
+  if (list.skipped.pantry.length) skipped.push(`dispensa (${list.skipped.pantry.join(', ')})`)
+  if (list.skipped.takeaway.length) skipped.push(`asporto (${list.skipped.takeaway.join(', ')})`)
+
+  $('#shopping-view').replaceChildren(...[
+    note ? el('p', { class: 'notice' }, note) : null,
+    list.items.length
+      ? el('div', { class: 'shopping-actions' },
+        el('button', { type: 'button', class: 'primary', onclick: shareList }, `Condividi (${toBuy} da comprare)`),
+        el('button', { type: 'button', class: 'secondary', onclick: saveListToDrive }, 'Salva su Drive'))
+      : el('p', { class: 'notice' }, 'Nessun ingrediente: scegli prima i pasti della settimana.'),
+    ...list.aisles.map(a => el('section', { class: 'aisle' },
+      el('h2', {}, a.label),
+      el('ul', { class: 'items' }, a.items.map(item)))),
+    skipped.length ? el('p', { class: 'small muted' }, `Non in lista: ${skipped.join('; ')}.`) : null,
+    checked.size
+      ? el('button', { type: 'button', class: 'link-btn', onclick: () => { setChecks(weekStart, []); render() } }, 'Togli tutte le spunte')
+      : null,
+    el('p', { class: 'small muted' }, 'Le quantità compaiono solo quando la ricetta le indica.')
+  ].filter(Boolean))
+}
+
+function showTab (tab) {
+  state.tab = tab
+  writeJSON(STORE.tab, tab)
+  render()
 }
 
 // --- meal sheet --------------------------------------------------------------
@@ -511,6 +625,8 @@ function main () {
     state.weekStart = mondayOf(today())
     moveWeek(0)
   })
+  $('#tab-plan').addEventListener('click', () => showTab('plan'))
+  $('#tab-shopping').addEventListener('click', () => showTab('shopping'))
   $('#save-btn').addEventListener('click', () => save('draft'))
   $('#confirm-btn').addEventListener('click', () => save('confirmed'))
   $('#propose-btn').addEventListener('click', newProposal)

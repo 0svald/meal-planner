@@ -129,6 +129,13 @@ it would trigger a CORS preflight Apps Script cannot answer):
 
 Success: `{ok: true, data: <new plans.json>, updated_at}`.
 
+`POST <exec>` with `{"id_token": "…", "action": "saveShoppingList",
+"week_start": "2026-10-05", "text": "…"}` writes
+`shopping-lists/spesa-2026-10-05.txt` (folder created if missing); an older copy
+moves to `archive/` as `spesa-2026-10-05-YYYYMMDD-HHMM.txt`. The text comes from
+`engine/shopping.js`: no conflict check, it is derived from the plan.
+`422 invalid_list` for a non-Monday week or an empty text.
+
 | `status` | `error` | Meaning |
 | --- | --- | --- |
 | 400 | `bad_json`, `bad_action` | malformed body |

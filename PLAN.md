@@ -87,6 +87,21 @@ Done when: a plan chosen on the phone is on Drive, and a second device sees it.
 
 Done when: the list for a confirmed week can be shared to another app in two taps.
 
+## Phase D2 — recipe wishlist (requested after D)
+
+1. Screen "Ricette da provare": anyone in the family adds a wish (name, optional
+   link, optional note) or removes one; the list shows who asked and the status.
+2. `wishlist.json` on Drive, written by the app only (same save, archive and
+   `updated_at` conflict check as `plans.json`); Apps Script actions to add and
+   remove a wish.
+3. The skill reads the wishlist, opens the links, proposes ingredients and
+   classification, and after the family's "salva" adds the dishes to
+   `catalog.json` with the wish id in `source.ref`. The app shows a wish as
+   "aggiunta al catalogo" when a dish refers to it: the skill never writes
+   `wishlist.json`. Needs a skill update (outside this repo).
+4. Sharing a link straight into the app (Web Share Target) comes with phase E,
+   Android only.
+
 ## Phase E — PWA
 
 1. `manifest.webmanifest` + icons, installable on Android and iOS.
@@ -102,9 +117,9 @@ Done when: the app is installed on the family's phones and opens offline.
 - Decide then whether to keep the Python checker as an independent cross-check or
   delete it (open question in the design document).
 
-## Open questions to settle before C
+## Open questions
 
-- Two people editing the same week: is last-write-wins acceptable, given the
-  `updatedAt` check, or is a soft lock needed?
+- Two people editing the same week: **settled** — last write wins, with the
+  `updated_at` check: on a conflict the app reloads and asks before overwriting.
 - A weekly reminder to pick the menu: worth it, and through what (email from Apps
-  Script, or nothing)?
+  Script, or nothing)? Still open.

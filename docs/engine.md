@@ -9,7 +9,8 @@ meaning everywhere. Pure ES modules: browser and Node, no `Date.now()`.
 | `data.js` | merge the Drive files, defaults, dates, canteen week |
 | `week.js` | the week as a list of meals, frequency groups |
 | `rules.js` | one evaluator per rule type, `evaluateWeek` |
-| `planner.js` | `proposeWeek`: candidates, ranking, proposal |
+| `planner.js` | `proposeWeek`, `evaluatePlan`, `slotOptions` |
+| `shopping.js` | plan → shopping list, shareable text |
 
 ## The week
 
@@ -85,3 +86,22 @@ node scripts/propose.js --week 2025-09-15            # fixtures
 node scripts/propose.js --data DIR --week 2026-10-05 --seed 3 --limit 5
 node scripts/propose.js --json                       # for the skill
 ```
+
+## Shopping list
+
+`shoppingList({data, plan})` takes the home meals of a plan (the app uses the
+week shown, and says so when it is not confirmed):
+
+- ingredients merged by name (case, spaces and accents ignored; "carota" and
+  "carote" stay two items: tidy the names in the catalog);
+- grouped by aisle in store order: frutta e verdura, carne, pesce, latte
+  formaggi e uova, pane e forno, dispensa, surgelati, altro;
+- pantry staples left out: the name is a pantry item or starts with one
+  ("sale" covers "sale grosso");
+- takeaway meals skipped (bought ready);
+- **quantities never computed**: a recipe's own `qty`/`unit` is repeated, with
+  the dish name when several dishes use the item ("320 g per Pasta e
+  lenticchie"); nothing is summed or scaled.
+
+`shoppingText(list, {exclude})` gives the text to share: a heading per aisle,
+one `- item` per line, ticked items left out.

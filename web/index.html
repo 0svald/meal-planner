@@ -36,6 +36,12 @@
       <button id="this-week" class="link-btn" type="button" hidden>Torna a questa settimana</button>
       <p id="week-notice" class="notice" hidden></p>
 
+      <div class="tabs" role="tablist">
+        <button id="tab-plan" type="button" role="tab" aria-selected="true">Settimana</button>
+        <button id="tab-shopping" type="button" role="tab" aria-selected="false">Spesa</button>
+      </div>
+
+      <div id="plan-view">
       <div class="plan-bar">
         <p id="plan-status" class="small muted"></p>
         <div class="plan-actions">
@@ -50,6 +56,9 @@
 
       <section id="feedback" class="feedback" aria-live="polite"></section>
       <ol id="days" class="days"></ol>
+      </div>
+
+      <div id="shopping-view" hidden></div>
     </section>
   </main>
 

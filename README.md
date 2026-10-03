@@ -5,9 +5,11 @@ lunches, and turn the plan into a shopping list. Companion to the
 `family-meal-planner` Claude skill. See `CLAUDE.md` for the constraints and
 `PLAN.md` for the build phases.
 
-Status: **phase C**: the week day by day, canteen lunch next to the home
-meals, three options per meal, live feedback on the rules, save as draft or
-confirm on Drive (`plans.json`). Engine: `docs/engine.md`.
+Status: **phase D**: the week day by day with three options per meal and live
+feedback on the rules, saved to Drive (`plans.json`); the shopping list of the
+week, grouped by aisle, checkable, shared in one tap (Bring!, Keep, WhatsApp) or
+saved to `shopping-lists/`. Next: recipe wishlist (D2), then PWA (E).
+Engine: `docs/engine.md`.
 
 ## Layout
 
