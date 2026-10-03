@@ -104,5 +104,40 @@ Failure (HTTP status is always 200): `{ok: false, status, error, message}`.
 | 404 | `not_found` | `catalog.json` or `family-data.json` missing |
 | 500 | `not_configured`, `bad_json`, `internal` | setup or data problem |
 
+`POST <exec>` with body (sent as **`text/plain`**, never a JSON content type:
+it would trigger a CORS preflight Apps Script cannot answer):
+
+```json
+{"id_token": "…", "action": "savePlan", "base_updated_at": "<updated_at of plans.json as loaded, or null>",
+ "plan": {"id": "2026-w41", "week_start": "2026-10-05", "status": "draft", "cycle_week": 2,
+          "meals": [{"date": "2026-10-05", "slot": "dinner", "dish_ids": ["pasta-lenticchie"]}]}}
+```
+
+- The plan replaces the one of the same `week_start`; `updated_at` and
+  `updated_by` (the email of whoever saved) are recorded on the plan and on
+  the file.
+- If `plans.json` changed since `base_updated_at`, nothing is written and the
+  answer is `409 conflict` with `updated_at` and `updated_by`: the app reloads
+  and asks whether to overwrite. The last confirmed save wins.
+- Only the shape is checked (Monday `week_start`, dates inside the week,
+  `lunch`/`dinner`, dish ids present in the catalog): `422 invalid_plan`
+  otherwise. Planning rules stay in `engine/`.
+- Saves are serialized with a script lock. The new `plans.json` is created
+  first, then the previous one moves to `archive/` as
+  `plans-YYYYMMDD-HHMM.json`. `catalog.json` and `family-data.json` are never
+  written.
+
+Success: `{ok: true, data: <new plans.json>, updated_at}`.
+
+| `status` | `error` | Meaning |
+| --- | --- | --- |
+| 400 | `bad_json`, `bad_action` | malformed body |
+| 409 | `conflict` | someone saved in between |
+| 422 | `invalid_plan` | `message` lists the problems |
+| 503 | `busy` | another save holds the lock, retry |
+
+`npm test` runs `Code.gs` under Node against an in-memory Drive
+(`apps-script/test/`), including saves, conflicts and archiving.
+
 Verified tokens are cached for their lifetime (at most one hour), keyed by their
 SHA-256 hash; the allowlist is read on every call.

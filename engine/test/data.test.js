@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   addDays, weekdayOf, mondayOf, dayNumber, mergeData, applyDefaults,
-  activeMenu, cycleWeek, canteenWeek
+  activeMenu, cycleWeek, canteenWeek, isoWeekId
 } from '../data.js'
 
 const fixture = name =>
@@ -114,4 +114,12 @@ test('no active menu', () => {
   data.school_menus = data.school_menus.map(m => ({ ...m, active: false }))
   assert.equal(activeMenu(data), null)
   assert.equal(canteenWeek(data, '2026-10-01'), null)
+})
+
+test('isoWeekId', () => {
+  assert.equal(isoWeekId('2026-09-28'), '2026-w40')
+  assert.equal(isoWeekId('2026-10-04'), '2026-w40')
+  assert.equal(isoWeekId('2026-01-01'), '2026-w01') // Thursday
+  assert.equal(isoWeekId('2027-01-01'), '2026-w53') // Friday of 2026's last week
+  assert.equal(isoWeekId('2024-12-30'), '2025-w01')
 })

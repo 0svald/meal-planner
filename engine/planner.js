@@ -18,7 +18,7 @@
 //   result is deterministic for the same data and seed.
 // Pure ES module: no DOM, no network, no Node-only API, no Date.now().
 
-import { dishIndex } from './data.js'
+import { dishIndex, isoWeekId } from './data.js'
 import { buildWeek, withMeal, slotKey, planHistory } from './week.js'
 import { evaluateWeek, penalties } from './rules.js'
 
@@ -173,15 +173,78 @@ function describe (dishIds, dishes) {
   })
 }
 
-export function proposeWeek ({ data, weekStart, seed = 0, plan = null, limit = 3 }) {
+function setup (data, weekStart, plan, seed) {
   const dishes = dishIndex(data)
   const rules = enabled(data.rules)
-  let week = buildWeek(data, weekStart, { plan })
+  const week = buildWeek(data, weekStart, { plan })
   const ctx = { dishes, history: planHistory(data, week.weekStart) }
   const homeMeals = week.meals.filter(m => m.source === 'home')
-  const fixed = new Set(homeMeals.filter(m => m.dishIds.length).map(slotKey))
   const candidates = new Map(homeMeals.map(m => [slotKey(m), candidateMeals(data, m)]))
-  const state = { rules, ctx, dishes, seed, candidates }
+  return { week, homeMeals, state: { rules, ctx, dishes, seed, candidates } }
+}
+
+function optionView (key, c, rules, dishes) {
+  return {
+    dishIds: c.dishIds,
+    dishes: describe(c.dishIds, dishes),
+    score: c.score,
+    takeaway: c.takeaway,
+    reasons: reasonsFor(key, c.results, c.totals, c.baseTotals, rules)
+  }
+}
+
+// Results of every enabled rule on the week; breaches the canteen lunches
+// already cause without the slots in `free` are flagged `unavoidable`.
+function judge (state, week, free) {
+  const { rules, ctx, dishes } = state
+  const before = evaluateWeek(rules, free.reduce((w, k) => withMeal(w, k, [], dishes), week), ctx)
+  const results = evaluateWeek(rules, week, ctx).map(r =>
+    unavoidable(r, before) ? { ...r, unavoidable: true } : r)
+  return { results, penalties: penalties(results) }
+}
+
+function planOf (week) {
+  return {
+    id: isoWeekId(week.weekStart),
+    week_start: week.weekStart,
+    status: 'draft',
+    cycle_week: week.cycleWeek,
+    meals: week.meals
+      .filter(x => x.source === 'home' && x.dishIds.length)
+      .map(x => ({ date: x.date, slot: x.slot, dish_ids: x.dishIds }))
+  }
+}
+
+// How the week of `plan` stands against the rules, as the family edited it.
+// `unavoidable` marks what the canteen lunches alone already break.
+export function evaluatePlan ({ data, weekStart, plan = null }) {
+  const { week, homeMeals, state } = setup(data, weekStart, plan, 0)
+  return judge(state, week, homeMeals.map(slotKey))
+}
+
+// The options for one home slot (key 'YYYY-MM-DD/slot') given the rest of the
+// plan: the current meal first if it is still allowed, then the best candidates
+// with a different main dish. Computed on demand, when the family opens a slot.
+export function slotOptions ({ data, weekStart, plan = null, key, limit = 3, seed = 0 }) {
+  const { week, state } = setup(data, weekStart, plan, seed)
+  const meal = week.meals.find(m => m.source === 'home' && slotKey(m) === key)
+  if (!meal) throw new Error(`Unknown home slot: ${key}`)
+  const ranked = rankSlot(state, week, key)
+  return {
+    key,
+    current: describe(meal.dishIds, state.dishes),
+    options: pickOptions(ranked, meal.dishIds, limit, state.dishes)
+      .map(c => optionView(key, c, state.rules, state.dishes)),
+    candidateCount: ranked.length
+  }
+}
+
+export function proposeWeek ({ data, weekStart, seed = 0, plan = null, limit = 3, withOptions = true }) {
+  const setupResult = setup(data, weekStart, plan, seed)
+  const { homeMeals, state } = setupResult
+  const { rules, ctx, dishes } = state
+  let week = setupResult.week
+  const fixed = new Set(homeMeals.filter(m => m.dishIds.length).map(slotKey))
   const free = homeMeals.map(slotKey).filter(k => !fixed.has(k))
 
   // Greedy fill, in calendar order.
@@ -208,43 +271,32 @@ export function proposeWeek ({ data, weekStart, seed = 0, plan = null, limit = 3
   const slots = homeMeals.map(m => {
     const key = slotKey(m)
     const meal = week.meals.find(x => slotKey(x) === key)
-    const ranked = rankSlot(state, week, key)
-    return {
+    const out = {
       key,
       date: m.date,
       weekday: m.weekday,
       slot: m.slot,
       fixed: fixed.has(key),
-      chosen: describe(meal.dishIds, dishes),
-      options: pickOptions(ranked, meal.dishIds, limit, dishes).map(c => ({
-        dishIds: c.dishIds,
-        dishes: describe(c.dishIds, dishes),
-        score: c.score,
-        reasons: reasonsFor(key, c.results, c.totals, c.baseTotals, rules)
-      })),
-      candidateCount: ranked.length
+      chosen: describe(meal.dishIds, dishes)
     }
+    if (withOptions) {
+      const ranked = rankSlot(state, week, key)
+      out.options = pickOptions(ranked, meal.dishIds, limit, dishes).map(c => optionView(key, c, rules, dishes))
+      out.candidateCount = ranked.length
+    }
+    return out
   })
 
   // Breaches the canteen lunches (and the fixed meals) already cause: the
   // proposals cannot fix them, and the UI should say so instead of blaming the plan.
-  const before = evaluateWeek(rules, free.reduce((w, k) => withMeal(w, k, [], dishes), week), ctx)
-  const results = evaluateWeek(rules, week, ctx).map(r =>
-    unavoidable(r, before) ? { ...r, unavoidable: true } : r)
+  const { results, penalties: totals } = judge(state, week, free)
   return {
     weekStart: week.weekStart,
     cycleWeek: week.cycleWeek,
     seed,
     slots,
     results,
-    penalties: penalties(results),
-    plan: {
-      week_start: week.weekStart,
-      status: 'draft',
-      cycle_week: week.cycleWeek,
-      meals: week.meals
-        .filter(x => x.source === 'home' && x.dishIds.length)
-        .map(x => ({ date: x.date, slot: x.slot, dish_ids: x.dishIds }))
-    }
+    penalties: totals,
+    plan: planOf(week)
   }
 }

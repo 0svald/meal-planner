@@ -41,6 +41,14 @@ export function mondayOf (date) {
   return addDays(date, -WEEKDAYS.indexOf(weekdayOf(date)))
 }
 
+// ISO week id of the week containing the date, as plans use it: '2026-w40'.
+export function isoWeekId (date) {
+  const thursday = dayNumber(mondayOf(date)) + 3
+  const year = fromDayNumber(thursday).slice(0, 4)
+  const week = Math.floor((thursday - dayNumber(`${year}-01-01`)) / 7) + 1
+  return `${year}-w${String(week).padStart(2, '0')}`
+}
+
 // --- merge and defaults ----------------------------------------------------
 
 // Merge the three Drive files into the single object of docs/schema.md.

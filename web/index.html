@@ -35,9 +35,27 @@
       </nav>
       <button id="this-week" class="link-btn" type="button" hidden>Torna a questa settimana</button>
       <p id="week-notice" class="notice" hidden></p>
+
+      <div class="plan-bar">
+        <p id="plan-status" class="small muted"></p>
+        <div class="plan-actions">
+          <button id="save-btn" type="button" class="secondary">Salva bozza</button>
+          <button id="confirm-btn" type="button" class="primary">Conferma settimana</button>
+        </div>
+        <div class="plan-links">
+          <button id="propose-btn" type="button" class="link-btn">Nuova proposta</button>
+          <button id="discard-btn" type="button" class="link-btn" hidden>Annulla modifiche</button>
+        </div>
+      </div>
+
+      <section id="feedback" class="feedback" aria-live="polite"></section>
       <ol id="days" class="days"></ol>
     </section>
   </main>
+
+  <dialog id="sheet" class="sheet">
+    <div id="sheet-body"></div>
+  </dialog>
 
   <dialog id="settings">
     <form method="dialog" id="settings-form">

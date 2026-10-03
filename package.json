@@ -3,6 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test \"engine/test/*.test.js\""
+    "test": "node --test \"engine/test/*.test.js\" \"apps-script/test/*.test.js\""
   }
 }
