@@ -57,6 +57,26 @@ Never commit the folder id, the emails, the client id or the `/exec` URL.
 
 ## Updating
 
+### With clasp (optional)
+
+From a computer with Node installed:
+
+```sh
+npm install -g @google/clasp
+clasp login                       # once, opens the browser
+cd apps-script
+cp .clasp.json.example .clasp.json   # git-ignored
+# put the script id in .clasp.json: editor → Project settings → IDs
+clasp push                        # uploads Code.gs and appsscript.json only
+clasp deploy -i <deployment-id>   # new version on the same /exec URL
+```
+
+`clasp push` needs the Apps Script API turned on once, at
+<https://script.google.com/home/usersettings>. The deployment id is the part
+between `/s/` and `/exec` of the web app URL, and is different from the script id.
+
+### By hand
+
 Paste the new `Code.gs`, then *Deploy → Manage deployments → ✏︎ → Version: New
 version*. Keeping the same deployment keeps the same `/exec` URL.
 
