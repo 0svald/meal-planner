@@ -93,18 +93,24 @@ export function buildWeek (data, date, { plan = null } = {}) {
   const meals = []
   WEEKDAYS.forEach((weekday, i) => {
     const date = addDays(weekStart, i)
-    const canteenDay = canteen && canteen.days.find(d => d.date === date)
-    if (canteenDay && canteenDay.items.length) {
-      const lunch = canteenDay.items.map(item => item.options[0]).filter(Boolean)
-      meals.push({
-        date, weekday, slot: 'lunch', source: 'canteen', dishIds: lunch.map(d => d.id), dishes: lunch
-      })
-    }
+    const lunch = canteenLunch(canteen, date, weekday)
+    if (lunch) meals.push(lunch)
     for (const s of HOME_SLOTS.filter(h => h.weekday === weekday)) {
       meals.push(homeMeal(date, weekday, s.slot, planned.get(`${date}/${s.slot}`) || [], dishes))
     }
   })
-  return { weekStart, cycleWeek: canteen ? canteen.cycleWeek : null, meals }
+  // The next Monday's canteen lunch: Sunday dinner is compared with it, but it
+  // belongs to the next week and counts toward nothing here.
+  const nextMonday = addDays(weekStart, 7)
+  const nextMondayLunch = canteenLunch(canteenWeek(data, nextMonday), nextMonday, 'mon')
+  return { weekStart, cycleWeek: canteen ? canteen.cycleWeek : null, meals, nextMondayLunch }
+}
+
+function canteenLunch (canteen, date, weekday) {
+  const day = canteen && canteen.days.find(d => d.date === date)
+  if (!day || !day.items.length) return null
+  const dishes = day.items.map(item => item.options[0]).filter(Boolean)
+  return { date, weekday, slot: 'lunch', source: 'canteen', dishIds: dishes.map(d => d.id), dishes }
 }
 
 // Replace the dishes of one home meal; returns a new week.

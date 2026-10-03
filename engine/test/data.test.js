@@ -30,7 +30,7 @@ test('mergeData takes each key from its file', () => {
   const data = load()
   assert.equal(data.dishes.length, 20)
   assert.equal(data.school_menus.length, 1)
-  assert.equal(data.rules.length, 15)
+  assert.equal(data.rules.length, 16)
   assert.deepEqual(data.plans, [])
   assert.ok(data.pantry.includes('sale'))
   assert.equal(data.family.adults, 2)

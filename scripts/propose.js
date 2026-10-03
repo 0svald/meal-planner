@@ -52,7 +52,7 @@ if (args.json) {
   for (const s of out.slots) {
     console.log(`\n${DAY[s.weekday]} ${s.date.slice(8)} ${SLOT[s.slot]}: ${names(s.chosen)}` +
       `  (${s.candidateCount} possibili)`)
-    s.candidates.forEach((c, i) => {
+    s.options.forEach((c, i) => {
       const why = c.reasons.map(r => `${r.effect} ${r.detail}`).join('; ')
       console.log(`   ${i + 1}. ${names(c.dishes)}  [${c.score}]${why ? '  ' + why : ''}`)
     })

@@ -98,29 +98,49 @@ export function frequency (rule, week) {
 }
 
 // --- complement --------------------------------------------------------------
-// A group eaten at lunch is not repeated at dinner the same day.
+// Two meals close in time must not be alike:
+//   when: 'same_day' (default) -> lunch and dinner of the same day;
+//   when: 'next_day'           -> dinner and the next day's lunch (Sunday
+//                                 dinner and the next Monday's canteen lunch).
+// Alike = they share a group of `groups`, or, with `same_dish: true`, the same
+// first, second or single dish.
 
 export function complement (rule, week) {
-  const groups = rule.params.groups || []
+  const { groups = [], when = 'same_day', same_dish: sameDish = false } = rule.params
+  const find = (weekday, slot) => week.meals.find(m => m.weekday === weekday && m.slot === slot)
+  const pairs = WEEKDAYS.map((weekday, i) => when === 'next_day'
+    ? [find(weekday, 'dinner'), i < 6 ? find(WEEKDAYS[i + 1], 'lunch') : week.nextMondayLunch]
+    : [find(weekday, 'lunch'), find(weekday, 'dinner')])
+
   const out = []
-  for (const weekday of WEEKDAYS) {
-    const lunch = week.meals.find(m => m.weekday === weekday && m.slot === 'lunch')
-    const dinner = week.meals.find(m => m.weekday === weekday && m.slot === 'dinner')
-    if (!lunch || !dinner || !lunch.dishes.length || !dinner.dishes.length) continue
-    const atLunch = mealGroups(lunch)
-    const atDinner = mealGroups(dinner)
-    const both = groups.filter(g => atLunch.has(g) && atDinner.has(g))
-    if (both.length) {
-      const names = both.map(g => (GROUP_LABELS[g] || g).toLowerCase()).join(', ')
-      out.push(result(rule, {
-        satisfied: false,
-        penalty: both.length * BOUND,
-        slot: slotKey(dinner),
-        detail: `${DAY_SHORT[weekday]}: ${names} sia a pranzo sia a cena`
-      }))
+  for (const [first, second] of pairs) {
+    if (!first || !second || !first.dishes.length || !second.dishes.length) continue
+    const a = mealGroups(first)
+    const b = mealGroups(second)
+    const sharedGroups = groups.filter(g => a.has(g) && b.has(g)).map(g => (GROUP_LABELS[g] || g).toLowerCase())
+    const sharedDishes = []
+    if (sameDish) {
+      const ids = new Set(second.dishes.filter(d => VARIETY_COURSES.has(d.course)).map(d => d.id))
+      for (const d of first.dishes) if (VARIETY_COURSES.has(d.course) && ids.has(d.id)) sharedDishes.push(d.name)
     }
+    if (!sharedGroups.length && !sharedDishes.length) continue
+    // The same dish says it all; otherwise name the groups.
+    const shared = sharedDishes.length ? sharedDishes : sharedGroups
+    const dinner = first.slot === 'dinner' ? first : second
+    out.push(result(rule, {
+      satisfied: false,
+      penalty: (sharedGroups.length + sharedDishes.length) * BOUND,
+      slot: slotKey(dinner),
+      detail: when === 'next_day'
+        ? `${shared.join(', ')} a cena ${DAY_SHORT[first.weekday]} e a pranzo ${DAY_SHORT[second.weekday]}`
+        : `${DAY_SHORT[first.weekday]}: ${shared.join(', ')} sia a pranzo sia a cena`
+    }))
   }
-  return out.length ? out : [result(rule, { satisfied: true, detail: 'Pranzo e cena si completano' })]
+  if (out.length) return out
+  return [result(rule, {
+    satisfied: true,
+    detail: when === 'next_day' ? 'La cena non ripete il pranzo del giorno dopo' : 'Pranzo e cena si completano'
+  })]
 }
 
 // --- exclusion ---------------------------------------------------------------
@@ -215,8 +235,10 @@ export function variety (rule, week, ctx) {
 }
 
 // --- takeaway ----------------------------------------------------------------
-// `per_week` takeaway meals, only on `days` at `slot`, cuisines in rotation:
-// after the last confirmed takeaway comes the next cuisine of the list.
+// Takeaway is optional: at most `per_week` takeaway meals, only on `days` at
+// `slot`, cuisines in rotation (after the last confirmed takeaway comes the
+// next cuisine of the list). The planner offers it as one of the options of
+// those slots, it never imposes it.
 
 export function takeaway (rule, week, ctx) {
   const { per_week: perWeek = 1, days = WEEKDAYS, slot = 'dinner', rotate_cuisines: rotation = [] } = rule.params
@@ -238,14 +260,7 @@ export function takeaway (rule, week, ctx) {
     out.push(result(rule, {
       satisfied: false,
       penalty: (meals.length - perWeek) * BOUND,
-      detail: `Asporto ${meals.length} volte, previste ${perWeek}`
-    }))
-  } else if (meals.length < perWeek) {
-    out.push(result(rule, {
-      satisfied: false,
-      pending: !isComplete(week),
-      penalty: (perWeek - meals.length) * BOUND,
-      detail: `Asporto ${meals.length} su ${perWeek}`
+      detail: `Asporto ${meals.length} volte, al massimo ${perWeek}`
     }))
   }
 
@@ -263,7 +278,7 @@ export function takeaway (rule, week, ctx) {
       }
     }
   }
-  return out.length ? out : [result(rule, { satisfied: true, detail: `Asporto ${meals.length} su ${perWeek}` })]
+  return out.length ? out : [result(rule, { satisfied: true, detail: `Asporto ${meals.length} (al massimo ${perWeek})` })]
 }
 
 function nextCuisine (rotation, ctx) {

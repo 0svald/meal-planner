@@ -1,8 +1,10 @@
 // Proposals for the home meals of a week.
 //
 // proposeWeek({ data, weekStart, seed, plan, limit }) returns, for each home
-// slot (7 dinners + Saturday and Sunday lunch), the proposed meal and a ranked
-// list of candidates with the reasons for the ranking.
+// slot (7 dinners + Saturday and Sunday lunch), the proposed meal and `limit`
+// (default 3) options to choose from, with the reasons for their ranking.
+// Options differ in their main dish (not just the side); where a takeaway
+// rule allows it, one option is a takeaway, which is never imposed.
 //
 // - Candidates are built from the meal_structure patterns (a first; a second
 //   and a side; a single dish) using the dishes cookable at home, plus the
@@ -112,6 +114,7 @@ function rankSlot (state, week, key) {
     if (hardRules.some(r => (totals.get(r.id) || 0) > (baseTotals.get(r.id) || 0))) continue
     ranked.push({
       dishIds,
+      takeaway: isTakeaway({ dishIds }, dishes),
       score: penalties(results).soft,
       tie: hash(`${seed}|${key}|${dishIds.join('+')}`),
       results,
@@ -135,6 +138,34 @@ function unavoidable (r, before) {
   return false
 }
 
+const isTakeaway = (c, dishes) => c.dishIds.some(id => (dishes.get(id) || {}).course === 'takeaway')
+
+// The proposal is home-cooked: takeaway is only offered as an option.
+function homeCooked (ranked) {
+  return ranked.filter(c => !c.takeaway)
+}
+
+// The current meal first, then the best candidates with a different main dish
+// (a side alone does not make another option); one takeaway where available.
+function pickOptions (ranked, current, limit, dishes) {
+  const main = c => c.dishIds.filter(id => (dishes.get(id) || {}).course !== 'side').join('+')
+  const same = c => c.dishIds.join('+') === current.join('+')
+  const options = []
+  const seen = new Set()
+  for (const c of [...ranked.filter(same), ...ranked]) {
+    if (options.length >= limit) break
+    if (seen.has(main(c))) continue
+    seen.add(main(c))
+    options.push(c)
+  }
+  const takeaway = ranked.find(c => c.takeaway)
+  if (takeaway && limit > 1 && !options.some(c => c.takeaway)) {
+    if (options.length >= limit) options.pop()
+    options.push(takeaway)
+  }
+  return options
+}
+
 function describe (dishIds, dishes) {
   return dishIds.map(id => {
     const d = dishes.get(id)
@@ -142,7 +173,7 @@ function describe (dishIds, dishes) {
   })
 }
 
-export function proposeWeek ({ data, weekStart, seed = 0, plan = null, limit = 5 }) {
+export function proposeWeek ({ data, weekStart, seed = 0, plan = null, limit = 3 }) {
   const dishes = dishIndex(data)
   const rules = enabled(data.rules)
   let week = buildWeek(data, weekStart, { plan })
@@ -155,7 +186,7 @@ export function proposeWeek ({ data, weekStart, seed = 0, plan = null, limit = 5
 
   // Greedy fill, in calendar order.
   for (const key of free) {
-    const [best] = rankSlot(state, week, key)
+    const [best] = homeCooked(rankSlot(state, week, key))
     if (best) week = withMeal(week, key, best.dishIds, dishes)
   }
 
@@ -164,7 +195,7 @@ export function proposeWeek ({ data, weekStart, seed = 0, plan = null, limit = 5
     let changed = false
     for (const key of free) {
       const current = penalties(evaluateWeek(rules, week, ctx)).soft
-      const [best] = rankSlot(state, week, key)
+      const [best] = homeCooked(rankSlot(state, week, key))
       const now = week.meals.find(m => slotKey(m) === key).dishIds
       if (best && best.score < current && best.dishIds.join('+') !== now.join('+')) {
         week = withMeal(week, key, best.dishIds, dishes)
@@ -185,7 +216,7 @@ export function proposeWeek ({ data, weekStart, seed = 0, plan = null, limit = 5
       slot: m.slot,
       fixed: fixed.has(key),
       chosen: describe(meal.dishIds, dishes),
-      candidates: ranked.slice(0, limit).map(c => ({
+      options: pickOptions(ranked, meal.dishIds, limit, dishes).map(c => ({
         dishIds: c.dishIds,
         dishes: describe(c.dishIds, dishes),
         score: c.score,

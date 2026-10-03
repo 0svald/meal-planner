@@ -205,7 +205,7 @@
       "priority": "soft",
       "origin": "family",
       "enabled": true,
-      "description": "Una cena da asporto nel weekend, a rotazione",
+      "description": "Al massimo una cena da asporto nel weekend, a rotazione",
       "params": {
         "per_week": 1,
         "days": [
@@ -244,6 +244,25 @@
             "single"
           ]
         ]
+      }
+    },
+    {
+      "id": "cena-pranzo-dopo",
+      "type": "complement",
+      "priority": "hard",
+      "origin": "family",
+      "enabled": true,
+      "description": "La cena non è simile al pranzo del giorno dopo: né la stessa proteina né lo stesso piatto",
+      "params": {
+        "groups": [
+          "meat",
+          "fish",
+          "eggs",
+          "cheese",
+          "legumes"
+        ],
+        "when": "next_day",
+        "same_dish": true
       }
     }
   ],

@@ -19,22 +19,20 @@ test('one takeaway at the weekend', () => {
   const data = makeData({ dishes })
   const [r] = takeaway(rule, weekOf(data, { 'sat/dinner': ['pizza'] }), ctxOf(data))
   assert.equal(r.satisfied, true)
-  assert.equal(r.detail, 'Asporto 1 su 1')
+  assert.equal(r.detail, 'Asporto 1 (al massimo 1)')
 })
 
-test('missing takeaway: pending, then soft', () => {
+test('takeaway is optional', () => {
   const data = makeData({ dishes })
-  const [partial] = takeaway(rule, weekOf(data), ctxOf(data))
-  assert.equal(partial.severity, 'pending')
-  const [complete] = takeaway(rule, weekOf(data, fullWeek({}, 'pasta')), ctxOf(data))
-  assert.equal(complete.severity, 'soft')
-  assert.equal(complete.penalty, 10)
+  const [r] = takeaway(rule, weekOf(data, fullWeek({}, 'pasta')), ctxOf(data))
+  assert.equal(r.satisfied, true)
+  assert.equal(r.penalty, 0)
 })
 
 test('wrong day and too many', () => {
   const data = makeData({ dishes })
   const results = takeaway(rule, weekOf(data, { 'wed/dinner': ['pizza'], 'sun/dinner': ['sushi'] }), ctxOf(data))
-  assert.deepEqual(results.map(r => r.detail), ['Asporto fuori dai giorni previsti (cena di mer)', 'Asporto 2 volte, previste 1'])
+  assert.deepEqual(results.map(r => r.detail), ['Asporto fuori dai giorni previsti (cena di mer)', 'Asporto 2 volte, al massimo 1'])
 })
 
 test('cuisines rotate after the last confirmed takeaway', () => {

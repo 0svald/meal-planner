@@ -26,6 +26,10 @@ a full one (`docs/taxonomy.md`).
 
 ## Rules: how each type is read
 
+The rule "la cena non è simile al pranzo del giorno dopo" is a `complement`
+rule with `when: next_day` and `same_dish: true` (see `fixtures/family-data.json`,
+`cena-pranzo-dopo`); the skill's validator accepts the extra parameters.
+
 Every evaluator returns `{ruleId, type, priority, satisfied, severity, penalty,
 detail, slot?}`. `severity` is `ok`, `pending` (week incomplete, only a minimum
 missing), `soft` or `hard`. `detail` is Italian and goes to the UI as is.
@@ -33,11 +37,11 @@ missing), `soft` or `hard`. `detail` is Italian and goes to the UI as is.
 | Type | Reading |
 | --- | --- |
 | `frequency` | meals of the week in the group. `children`: canteen + home; `adults`: home only; `family`: all. Out of `min`/`max` = not satisfied; missing the `target` only costs score. |
-| `complement` | a group of `groups` eaten at lunch is not eaten at dinner the same day (canteen or weekend home lunch). |
+| `complement` | two meals close in time are not alike. `when: same_day` (default): lunch and dinner of the same day. `when: next_day`: dinner and the next day's lunch (Sunday dinner and the next Monday's canteen lunch). Alike = they share a group of `groups`, or, with `same_dish: true`, the same first, second or single dish. |
 | `exclusion` | substring, case-insensitive, on ingredient names **and the dish name**. Home meals only: the canteen is not the family's choice. |
 | `time_limit` | sum of the `prep_minutes` of the meal's dishes on `days`. A dish **without `prep_minutes` fails** (nobody said it is quick); takeaway needs no preparation. |
 | `variety` | days since a dish was last eaten, in a confirmed plan or earlier in the same week. Only firsts, seconds and single dishes: sides may repeat. Canteen lunches do not count. |
-| `takeaway` | `per_week` takeaway meals, only on `days` at `slot`; after the last confirmed takeaway comes the next cuisine of `rotate_cuisines`. |
+| `takeaway` | optional: **at most** `per_week` takeaway meals, only on `days` at `slot`; after the last confirmed takeaway comes the next cuisine of `rotate_cuisines`. A week without takeaway is fine. |
 | `meal_structure` | courses of a home meal (bread, fruit, dessert aside) match one of `patterns`, in any order. A takeaway meal is one takeaway dish. |
 
 ## Scoring
@@ -48,7 +52,8 @@ more the closer the repeat; a takeaway of the wrong cuisine costs 4 (`Math.ceil(
 
 ## Proposals
 
-`proposeWeek({data, weekStart, seed, plan, limit})`:
+`proposeWeek({data, weekStart, seed, plan, limit})` gives, for every home slot,
+the proposed meal and `limit` (default **3**) options to choose from:
 
 1. **Candidates** per home slot: one dish per course of each `meal_structure`
    pattern, from the dishes `cookable_at_home` (low-confidence classifications
@@ -62,9 +67,12 @@ more the closer the repeat; a takeaway of the wrong cuisine costs 4 (`Math.ceil(
 4. The week is filled greedily, then improved one slot at a time until no single
    change lowers the score. Ties are broken by a hash of `seed`: same data and
    seed, same proposal; another seed, another proposal of equal score.
-5. Each slot gets its candidates ranked against the final week, with the
-   reasons: the soft rules a candidate helps (`+`) or hurts (`-`) compared with
-   an empty slot.
+5. Each slot gets its options ranked against the final week: the proposal
+   first, then the best candidates with a **different main dish** (another side
+   alone is not another option). Where a takeaway rule allows it, the last
+   option is the best takeaway: it is offered, never proposed. Each option has
+   its reasons: the soft rules it helps (`+`) or hurts (`-`) compared with an
+   empty slot.
 
 Meals already in `plan` are kept (`fixed`) and still get their alternatives.
 Results the canteen (or the fixed meals) already cause carry `unavoidable: true`,

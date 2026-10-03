@@ -19,8 +19,8 @@ test('a proposal for every home slot, no hard rule made worse', () => {
   assert.equal(out.slots.length, 9)
   for (const slot of out.slots) {
     assert.ok(slot.chosen.length > 0, `${slot.key} has a proposal`)
-    assert.ok(slot.candidates.length > 0)
-    assert.ok(slot.candidates[0].reasons.every(r => r.effect === '+' || r.effect === '-'))
+    assert.ok(slot.options.length > 0)
+    assert.ok(slot.options[0].reasons.every(r => r.effect === '+' || r.effect === '-'))
   }
   const broken = out.results.filter(r => r.severity === 'hard')
   assert.ok(broken.every(r => r.unavoidable), `only canteen-caused hard breaches: ${broken.map(r => r.detail)}`)
@@ -40,14 +40,14 @@ test('weekly frequencies within bounds where the canteen allows it', () => {
   assert.ok(soft.every(r => r.satisfied), soft.filter(r => !r.satisfied).map(r => r.detail).join('; '))
 })
 
-test('the chosen meal is the best candidate of its slot', () => {
+test('three options per slot, the proposal first, different main dishes', () => {
   const out = proposeWeek({ data: load(), weekStart: WEEK1 })
+  const dishes = new Map(load().dishes.map(d => [d.id, d]))
   for (const slot of out.slots) {
-    const chosen = slot.chosen.map(d => d.id).join('+')
-    const best = slot.candidates[0]
-    const same = slot.candidates.find(c => c.dishIds.join('+') === chosen)
-    assert.ok(same, `${slot.key}: the proposal is among the candidates`)
-    assert.equal(same.score, best.score)
+    assert.equal(slot.options.length, 3, slot.key)
+    assert.deepEqual(slot.options[0].dishIds, slot.chosen.map(d => d.id))
+    const mains = slot.options.map(o => o.dishIds.filter(id => dishes.get(id).course !== 'side').join('+'))
+    assert.equal(new Set(mains).size, 3, `${slot.key}: ${mains}`)
   }
 })
 
@@ -57,12 +57,13 @@ test('deterministic for the same seed', () => {
   assert.deepEqual(a, b)
 })
 
-test('the takeaway goes to a weekend dinner', () => {
+test('takeaway is offered at weekend dinners, never imposed', () => {
   const out = proposeWeek({ data: load(), weekStart: WEEK1 })
-  const takeaway = out.slots.filter(s => s.chosen.some(d => d.course === 'takeaway'))
-  assert.equal(takeaway.length, 1)
-  assert.ok(['sat', 'sun'].includes(takeaway[0].weekday))
-  assert.equal(takeaway[0].slot, 'dinner')
+  for (const slot of out.slots) {
+    const offered = slot.options.some(o => o.dishes.some(d => d.course === 'takeaway'))
+    assert.equal(offered, slot.slot === 'dinner' && ['sat', 'sun'].includes(slot.weekday), slot.key)
+    assert.ok(slot.chosen.every(d => d.course !== 'takeaway'), slot.key)
+  }
 })
 
 test('candidates follow the meal structure; takeaway only where allowed', () => {
