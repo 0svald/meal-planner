@@ -94,8 +94,9 @@ Schema essentials:
 - Functions in `engine/` are pure: `(data, args) => result`. No dates from
   `Date.now()` inside them — pass the date in, so tests are deterministic.
 - Every rule type gets its own function and its own test file.
-- Tests: `npm test` (runs `node --test "engine/test/*.test.js"`, no install
-  needed). They must pass without network access.
+- Tests: `npm test` (runs `node --test` on `engine/test/` and `apps-script/test/`,
+  no install needed; `Code.gs` runs against an in-memory Drive). They must pass
+  without network access.
 - Commit messages in English, imperative mood.
 - Never commit real family data, emails, Drive ids or deployment URLs. Those live
   in Script Properties and in `web/config.js` (git-ignored, with a

@@ -1,6 +1,7 @@
 // Data API for menu-famiglia-app.
-// Reads the JSON files of the Drive folder family-meal-planner/. No planning
-// logic lives here: identify the caller, read, (later) validate and write.
+// Reads the JSON files of the Drive folder family-meal-planner/ and writes
+// plans.json. No planning logic lives here: identify the caller, read,
+// validate the shape, write.
 //
 // Script Properties (Project settings > Script properties):
 //   FOLDER_ID   id of the family-meal-planner folder
@@ -36,6 +37,27 @@ function doGet(e) {
     }
     var res = readResource_(name);
     return json_({ ok: true, resource: name, email: email, data: res.data, updated_at: res.updated_at });
+  } catch (err) {
+    return errorOutput_(err);
+  }
+}
+
+// POST body (sent as text/plain to avoid a CORS preflight):
+//   {id_token, action: 'savePlan', plan, base_updated_at}
+// `base_updated_at` is the `updated_at` of plans.json the app loaded (null if
+// the file did not exist): if someone saved in between, the write is refused
+// with 409 and the app reloads. The last confirmed write wins.
+function doPost(e) {
+  try {
+    var body;
+    try {
+      body = JSON.parse(e.postData.contents);
+    } catch (parseError) {
+      throw apiError_(400, 'bad_json', 'Body must be JSON sent as text/plain');
+    }
+    var email = authenticate_(body.id_token);
+    if (body.action !== 'savePlan') throw apiError_(400, 'bad_action', 'action must be savePlan');
+    return json_(savePlan_(body.plan, body.base_updated_at || null, email));
   } catch (err) {
     return errorOutput_(err);
   }
@@ -124,6 +146,111 @@ function findFile_(fileName) {
   return best;
 }
 
+// Only plans.json is ever written: catalog.json and family-data.json belong
+// to the skill. A save creates a new copy, then moves the old one to archive/
+// as plans-YYYYMMDD-HHMM.json (same convention as the skill).
+function writePlans_(obj) {
+  var name = RESOURCES.plans;
+  var folder = DriveApp.getFolderById(property_('FOLDER_ID'));
+  var old = findFile_(name);
+  var created = folder.createFile(name, JSON.stringify(obj), 'application/json');
+  if (old) {
+    old.moveTo(archiveFolder_(folder));
+    old.setName('plans-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd-HHmm') + '.json');
+  }
+  return created;
+}
+
+function archiveFolder_(folder) {
+  var it = folder.getFoldersByName('archive');
+  return it.hasNext() ? it.next() : folder.createFolder('archive');
+}
+
+// --- plans -----------------------------------------------------------------
+
+function savePlan_(plan, baseUpdatedAt, email) {
+  var catalog = readResource_('catalog').data;
+  var dishIds = {};
+  (catalog.dishes || []).forEach(function (d) { dishIds[d.id] = true; });
+  var clean = validatePlan_(plan, dishIds);
+
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw apiError_(503, 'busy', 'Another save is in progress, retry');
+  try {
+    var current = readResource_('plans').data;
+    var stamp = current.updated_at || null;
+    if (baseUpdatedAt !== stamp) {
+      var conflict = apiError_(409, 'conflict', 'plans.json changed since it was loaded');
+      conflict.extra = { updated_at: stamp, updated_by: current.updated_by || null };
+      throw conflict;
+    }
+    var now = new Date().toISOString();
+    clean.updated_at = now;
+    clean.updated_by = email;
+    var plans = (current.plans || []).filter(function (p) { return p.week_start !== clean.week_start; });
+    plans.push(clean);
+    plans.sort(function (a, b) { return a.week_start < b.week_start ? -1 : 1; });
+    var next = {
+      schema_version: current.schema_version || '1.0',
+      updated_at: now,
+      updated_by: email,
+      plans: plans
+    };
+    writePlans_(next);
+    return { ok: true, action: 'savePlan', email: email, data: next, updated_at: now };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Shape checks only: the planning rules live in engine/, not here.
+function validatePlan_(plan, dishIds) {
+  var problems = [];
+  if (!plan || typeof plan !== 'object') throw apiError_(422, 'invalid_plan', 'plan must be an object');
+  var start = parseDate_(plan.week_start);
+  if (!start) problems.push('week_start must be YYYY-MM-DD');
+  else if (start.getUTCDay() !== 1) problems.push('week_start must be a Monday');
+  if (typeof plan.id !== 'string' || !/^\d{4}-w\d{2}$/.test(plan.id)) problems.push('id must look like 2026-w40');
+  if (plan.status !== 'draft' && plan.status !== 'confirmed') problems.push('status must be draft or confirmed');
+  if (plan.cycle_week != null && !(Number(plan.cycle_week) >= 1 && Number(plan.cycle_week) % 1 === 0)) {
+    problems.push('cycle_week must be a positive integer');
+  }
+  var meals = [];
+  if (!Array.isArray(plan.meals) || plan.meals.length > 14) {
+    problems.push('meals must be a list of at most 14 meals');
+  } else {
+    var seen = {};
+    plan.meals.forEach(function (m, i) {
+      var p = 'meals[' + i + ']';
+      var day = m && parseDate_(m.date);
+      if (!day) return problems.push(p + '.date must be YYYY-MM-DD');
+      var offset = start ? Math.round((day - start) / 86400000) : 0;
+      if (offset < 0 || offset > 6) problems.push(p + '.date is outside the week');
+      if (m.slot !== 'lunch' && m.slot !== 'dinner') problems.push(p + '.slot must be lunch or dinner');
+      if (seen[m.date + '/' + m.slot]) problems.push(p + ' repeats ' + m.date + ' ' + m.slot);
+      seen[m.date + '/' + m.slot] = true;
+      if (!Array.isArray(m.dish_ids) || !m.dish_ids.length) {
+        return problems.push(p + '.dish_ids must be a non-empty list');
+      }
+      m.dish_ids.forEach(function (id) {
+        if (!dishIds[id]) problems.push(p + ': unknown dish ' + id);
+      });
+      meals.push({ date: m.date, slot: m.slot, dish_ids: m.dish_ids.slice() });
+    });
+  }
+  if (problems.length) throw apiError_(422, 'invalid_plan', problems.join('; '));
+  var clean = { id: plan.id, week_start: plan.week_start, status: plan.status, meals: meals };
+  if (plan.cycle_week != null) clean.cycle_week = Number(plan.cycle_week);
+  return clean;
+}
+
+function parseDate_(text) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text || '');
+  if (!m) return null;
+  var d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return d.toISOString().slice(0, 10) === text ? d : null;
+}
+
 // --- helpers ---------------------------------------------------------------
 
 function property_(key) {
@@ -148,6 +275,7 @@ function errorOutput_(err) {
     message: err.apiStatus ? err.message : 'Internal error'
   };
   if (err.email) body.email = err.email;
+  if (err.extra) Object.keys(err.extra).forEach(function (k) { body[k] = err.extra[k]; });
   return json_(body);
 }
 

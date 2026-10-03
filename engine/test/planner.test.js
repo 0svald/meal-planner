@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { mergeData, addDays } from '../data.js'
-import { proposeWeek, candidateMeals } from '../planner.js'
+import { proposeWeek, candidateMeals, evaluatePlan, slotOptions } from '../planner.js'
 import { buildWeek } from '../week.js'
 
 const fixture = name =>
@@ -103,4 +103,47 @@ test('a confirmed earlier week steers variety', () => {
   const proposed = proposeWeek({ data, weekStart: nextMonday })
   assert.ok(varietyPenalty(same) > 0)
   assert.ok(varietyPenalty(proposed) < varietyPenalty(same))
+})
+
+test('the proposed plan carries its ISO week id', () => {
+  const out = proposeWeek({ data: load(), weekStart: WEEK1, withOptions: false })
+  assert.equal(out.plan.id, '2025-w38')
+  assert.equal(out.slots[0].options, undefined)
+})
+
+test('evaluatePlan judges a hand-made week and flags the canteen breaches', () => {
+  const data = load()
+  const plan = {
+    week_start: WEEK1,
+    status: 'draft',
+    meals: [
+      { date: WEEK1, slot: 'dinner', dish_ids: ['lasagne-forno'] },
+      { date: addDays(WEEK1, 1), slot: 'dinner', dish_ids: ['frittata', 'insalata-verde'] }
+    ]
+  }
+  const { results } = evaluatePlan({ data, weekStart: WEEK1, plan })
+  const byId = id => results.filter(r => r.ruleId === id)
+  // Monday: lasagne (red meat, 75 minutes) after a red-meat canteen lunch.
+  assert.ok(byId('tempo-feriali').some(r => !r.satisfied && r.slot === `${WEEK1}/dinner`))
+  assert.ok(byId('complemento-pranzo').some(r => !r.satisfied && r.slot === `${WEEK1}/dinner`))
+  const redMeat = byId('crea-carne-rossa')[0]
+  assert.equal(redMeat.satisfied, false)
+  assert.equal(redMeat.unavoidable, undefined, 'the third red meat is the family choice')
+  // Tuesday: eggs at the canteen lunch and at dinner.
+  assert.ok(byId('complemento-pranzo').some(r => r.slot === `${addDays(WEEK1, 1)}/dinner`))
+  const legumes = byId('crea-legumi')[0]
+  assert.equal(legumes.severity, 'pending')
+})
+
+test('slotOptions: current meal first, then allowed alternatives', () => {
+  const data = load()
+  const key = `${addDays(WEEK1, 3)}/dinner`
+  const plan = { week_start: WEEK1, status: 'draft', meals: [{ date: addDays(WEEK1, 3), slot: 'dinner', dish_ids: ['pasta-pomodoro'] }] }
+  const out = slotOptions({ data, weekStart: WEEK1, plan, key })
+  assert.deepEqual(out.current.map(d => d.id), ['pasta-pomodoro'])
+  assert.equal(out.options.length, 3)
+  assert.deepEqual(out.options[0].dishIds, ['pasta-pomodoro'])
+  const more = slotOptions({ data, weekStart: WEEK1, plan, key, limit: 10 })
+  assert.ok(more.options.length > 3)
+  assert.throws(() => slotOptions({ data, weekStart: WEEK1, key: `${WEEK1}/lunch` }), /Unknown home slot/)
 })
