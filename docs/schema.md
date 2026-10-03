@@ -11,6 +11,7 @@ The data is split across three Drive files:
 | `family-data.json` | `family`, `rules`, `pantry` | skill only |
 | `plans.json` | `plans`, plus `updated_at`, `updated_by` | app only |
 | `pantry.json` | `pantry`, plus `updated_at`, `updated_by` | app only |
+| `wishlist.json` | `wishes`, plus `updated_at`, `updated_by` | app only |
 
 `engine/data.js` (`mergeData`) merges them into the single object described here.
 While `plans.json` does not exist yet, `plans` is read from `family-data.json`, where
@@ -143,3 +144,16 @@ Lists may be empty (a salad has no proteins). Meanings in `taxonomy.md`.
   weekday lunches come from the school menu and are not stored in the plan.
 - `status`: draft → confirmed. Only confirmed plans feed the shopping list and the
   variety history.
+
+## wishlist (wishlist.json, app only)
+
+```json
+{ "schema_version": "1.0", "updated_at": "2026-10-04T10:00:00Z", "updated_by": "…",
+  "wishes": [{ "id": "w-20261004-ab12cd", "name": "Polpette di lenticchie",
+               "url": "https://…", "note": "senza forno",
+               "added_by": "…", "added_at": "2026-10-04T10:00:00Z" }] }
+```
+
+`url` and `note` are optional. A wish is added to the catalog when a dish has
+`wish:<id>` in `source.ref` (several ids may be listed); the skill never writes
+this file. See `docs/skill-integration.md`.

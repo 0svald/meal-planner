@@ -25,6 +25,12 @@
     </div>
 
     <section id="week" hidden>
+      <div class="tabs" role="tablist">
+        <button id="tab-plan" type="button" role="tab" aria-selected="true">Settimana</button>
+        <button id="tab-shopping" type="button" role="tab" aria-selected="false">Spesa</button>
+        <button id="tab-wishes" type="button" role="tab" aria-selected="false">Ricette</button>
+      </div>
+
       <nav class="week-nav" aria-label="Settimana">
         <button id="prev-week" type="button" aria-label="Settimana precedente">‹</button>
         <div class="week-title">
@@ -36,10 +42,6 @@
       <button id="this-week" class="link-btn" type="button" hidden>Torna a questa settimana</button>
       <p id="week-notice" class="notice" hidden></p>
 
-      <div class="tabs" role="tablist">
-        <button id="tab-plan" type="button" role="tab" aria-selected="true">Settimana</button>
-        <button id="tab-shopping" type="button" role="tab" aria-selected="false">Spesa</button>
-      </div>
 
       <div id="plan-view">
       <div class="plan-bar">
@@ -59,6 +61,7 @@
       </div>
 
       <div id="shopping-view" hidden></div>
+      <div id="wishes-view" hidden></div>
     </section>
   </main>
 

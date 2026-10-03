@@ -5,11 +5,11 @@ lunches, and turn the plan into a shopping list. Companion to the
 `family-meal-planner` Claude skill. See `CLAUDE.md` for the constraints and
 `PLAN.md` for the build phases.
 
-Status: **phase D**: the week day by day with three options per meal and live
+Status: **phase D2**: the week day by day with three options per meal and live
 feedback on the rules, saved to Drive (`plans.json`); the shopping list of the
-week, grouped by aisle, checkable, shared in one tap (Bring!, Keep, WhatsApp) or
-saved to `shopping-lists/`. Next: recipe wishlist (D2), then PWA (E).
-Engine: `docs/engine.md`.
+week, checkable and shared in one tap, with the pantry edited in the app
+(`pantry.json`); the recipe wishlist (`wishlist.json`) for the skill to load
+(`docs/skill-integration.md`). Next: PWA (E). Engine: `docs/engine.md`.
 
 ## Layout
 

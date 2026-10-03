@@ -1,7 +1,7 @@
 // A minimal in-memory imitation of the Apps Script services Code.gs uses,
 // so the script can run under node:test without Google.
 import { readFileSync } from 'node:fs'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import vm from 'node:vm'
 
 let clock = Date.parse('2026-10-04T10:00:00Z')
@@ -82,7 +82,10 @@ export function loadScript ({ files = {}, allowed = 'mamma@example.com,papa@exam
       DigestAlgorithm: { SHA_256: 'sha256' },
       Charset: { UTF_8: 'utf8' },
       computeDigest: (alg, text) => [...createHash('sha256').update(text).digest()].map(b => (b > 127 ? b - 256 : b)),
-      formatDate: d => d.toISOString().slice(0, 16).replace(/-/g, '').replace('T', '-').replace(':', '')
+      formatDate: (d, tz, fmt) => fmt === 'yyyyMMdd'
+        ? d.toISOString().slice(0, 10).replace(/-/g, '')
+        : d.toISOString().slice(0, 16).replace(/-/g, '').replace('T', '-').replace(':', ''),
+      getUuid: () => randomUUID()
     },
     Session: { getScriptTimeZone: () => 'UTC' },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock () {} }) }

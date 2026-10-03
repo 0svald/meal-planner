@@ -53,8 +53,9 @@ export function isoWeekId (date) {
 
 // Merge the Drive files into the single object of docs/schema.md.
 // `plans` comes from plans.json and `pantry` from pantry.json (both written by
-// the app); until those files exist, from family-data.json.
-export function mergeData ({ catalog = {}, family = {}, plans = null, pantry = null } = {}) {
+// the app); until those files exist, from family-data.json. `wishlist` (recipes
+// the family would like added) comes from wishlist.json, also the app's.
+export function mergeData ({ catalog = {}, family = {}, plans = null, pantry = null, wishlist = null } = {}) {
   const planList = plans && Array.isArray(plans.plans) ? plans.plans : family.plans
   const staples = pantry && Array.isArray(pantry.pantry) ? pantry.pantry : family.pantry
   return applyDefaults({
@@ -64,7 +65,8 @@ export function mergeData ({ catalog = {}, family = {}, plans = null, pantry = n
     school_menus: catalog.school_menus || [],
     rules: family.rules || [],
     plans: planList || [],
-    pantry: staples || []
+    pantry: staples || [],
+    wishlist: (wishlist && Array.isArray(wishlist.wishes)) ? wishlist.wishes : []
   })
 }
 
@@ -78,7 +80,8 @@ export function applyDefaults (data) {
     school_menus: (data.school_menus || []).map(withMenuDefaults),
     rules: data.rules || [],
     plans: data.plans || [],
-    pantry: data.pantry || []
+    pantry: data.pantry || [],
+    wishlist: data.wishlist || []
   }
 }
 

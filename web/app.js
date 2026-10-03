@@ -6,6 +6,7 @@ import { mergeData, canteenWeek, mondayOf, addDays, isoWeekId, WEEKDAYS } from '
 import { proposeWeek, evaluatePlan, slotOptions } from '../engine/planner.js'
 import { buildWeek, HOME_SLOTS } from '../engine/week.js'
 import { shoppingList, shoppingText, quantityNote, usesNote } from '../engine/shopping.js'
+import { wishlistView } from '../engine/wishlist.js'
 import { STORE, readJSON, writeJSON } from './storage.js'
 import * as api from './api.js'
 
@@ -36,7 +37,7 @@ const state = {
   // are kept in localStorage so closing the app does not lose them.
   drafts: readJSON(STORE.drafts) || {},
   sheet: null,
-  tab: readJSON(STORE.tab) === 'shopping' ? 'shopping' : 'plan'
+  tab: ['shopping', 'wishes'].includes(readJSON(STORE.tab)) ? readJSON(STORE.tab) : 'plan'
 }
 const $ = sel => document.querySelector(sel)
 
@@ -109,7 +110,8 @@ function setData (cache) {
     catalog: r.catalog.data,
     family: r.family.data,
     plans: r.plans.data,
-    pantry: r.pantry ? r.pantry.data : null
+    pantry: r.pantry ? r.pantry.data : null,
+    wishlist: r.wishlist ? r.wishlist.data : null
   })
   state.plansUpdatedAt = (r.plans.data && r.plans.data.updated_at) || null
   state.fetchedAt = cache.fetchedAt
@@ -353,8 +355,22 @@ function homeRow (date, slot, meals, results) {
   )
 }
 
+const TABS = ['plan', 'shopping', 'wishes']
+
 function render () {
   if (!state.data) return
+  $('#week').hidden = false
+  for (const tab of TABS) {
+    $(`#tab-${tab}`).setAttribute('aria-selected', String(state.tab === tab))
+    $(`#${tab}-view`).hidden = state.tab !== tab
+  }
+  // The recipe wishlist does not belong to a week.
+  $('.week-nav').hidden = state.tab === 'wishes'
+  if (state.tab === 'wishes') {
+    $('#this-week').hidden = true
+    $('#week-notice').hidden = true
+    return renderWishes()
+  }
   const weekStart = state.weekStart
   const draft = draftFor(weekStart)
   const saved = savedPlan(weekStart)
@@ -377,10 +393,6 @@ function render () {
     notice.hidden = false
   }
 
-  $('#tab-plan').setAttribute('aria-selected', String(state.tab === 'plan'))
-  $('#tab-shopping').setAttribute('aria-selected', String(state.tab === 'shopping'))
-  $('#plan-view').hidden = state.tab !== 'plan'
-  $('#shopping-view').hidden = state.tab !== 'shopping'
   if (state.tab === 'shopping') return renderShopping(draft, saved)
 
   const week = buildWeek(state.data, weekStart, { plan: draft.plan })
@@ -597,6 +609,94 @@ function renderPantry (list) {
   )
 }
 
+// --- recipe wishlist ---------------------------------------------------------
+
+let wishBusy = false
+
+async function changeWishes (call, done) {
+  if (wishBusy) return
+  wishBusy = true
+  showStatus('Salvataggio…', 'info')
+  const body = await call()
+  wishBusy = false
+  if (body.ok) {
+    const cache = api.DEMO ? null : readJSON(STORE.cache)
+    if (cache) {
+      cache.resources.wishlist = { data: body.data, updated_at: body.updated_at }
+      writeJSON(STORE.cache, cache)
+      setData(cache)
+      hideStatus()
+      render()
+    } else {
+      await refresh()
+    }
+    if (done) done()
+    return
+  }
+  if (['offline', 'unreachable', 'signin_unavailable'].includes(body.error)) {
+    showStatus('Non riesco a salvare adesso: riprova quando sei online.', 'error')
+  } else if (body.error === 'invalid_wish') {
+    showStatus(`Controlla i campi: ${body.message}`, 'error')
+  } else {
+    showStatus(messageFor(body), 'error')
+  }
+}
+
+function renderWishes () {
+  const wishes = wishlistView(state.data)
+  const form = el('form', { class: 'wish-form' },
+    el('label', {}, 'Ricetta',
+      el('input', { name: 'name', type: 'text', required: true, maxlength: '80', placeholder: 'es. Polpette di lenticchie', autocomplete: 'off' })),
+    el('label', {}, 'Link (facoltativo)',
+      el('input', { name: 'url', type: 'url', maxlength: '500', placeholder: 'https://…', autocomplete: 'off' })),
+    el('label', {}, 'Nota (facoltativa)',
+      el('input', { name: 'note', type: 'text', maxlength: '300', placeholder: 'es. senza forno, piaciuta dai nonni', autocomplete: 'off' })),
+    el('button', { type: 'submit', class: 'primary' }, 'Aggiungi alla lista'))
+  form.addEventListener('submit', event => {
+    event.preventDefault()
+    const wish = { name: form.name.value.trim(), url: form.url.value.trim(), note: form.note.value.trim() }
+    if (!wish.name) return
+    changeWishes(() => api.addWish(wish), () => {
+      showStatus('Aggiunta. La caricherà l\'assistente del menu quando glielo chiedi.', 'info')
+    })
+  })
+
+  const card = w => el('li', { class: `wish ${w.status}` },
+    el('div', { class: 'wish-head' },
+      w.url
+        ? el('a', { href: w.url, target: '_blank', rel: 'noopener noreferrer', class: 'wish-name' }, w.name)
+        : el('span', { class: 'wish-name' }, w.name),
+      el('span', { class: 'badge' }, w.status === 'added' ? 'nel catalogo' : 'in attesa')),
+    w.note ? el('p', { class: 'wish-note' }, w.note) : null,
+    w.status === 'added'
+      ? el('p', { class: 'small muted' }, `Aggiunta come: ${w.dishes.map(d => d.name).join(', ')}`)
+      : null,
+    el('div', { class: 'wish-foot' },
+      el('span', { class: 'small muted' },
+        [w.added_by ? `da ${w.added_by.split('@')[0]}` : '', w.added_at ? dateTime(w.added_at) : ''].filter(Boolean).join(' · ')),
+      el('button', {
+        type: 'button',
+        class: 'link-btn',
+        onclick: () => {
+          if (confirm(`Togliere «${w.name}» dalla lista?`)) changeWishes(() => api.removeWish(w.id))
+        }
+      }, 'Togli')))
+
+  const pending = wishes.filter(w => w.status === 'pending').length
+  $('#wishes-view').replaceChildren(...[
+    el('section', { class: 'aisle' },
+      el('h2', {}, 'Ricette da provare'),
+      el('p', { class: 'small muted' },
+        'Segna qui le ricette da aggiungere al menu. Poi in chat chiedi all\'assistente del menu ' +
+        '«carica le ricette della lista»: le classifica, ti chiede conferma e le aggiunge al catalogo.'),
+      form),
+    wishes.length
+      ? el('p', { class: 'small muted' }, `${pending} in attesa, ${wishes.length - pending} già nel catalogo.`)
+      : el('p', { class: 'small muted' }, 'La lista è vuota.'),
+    wishes.length ? el('ul', { class: 'wishes' }, wishes.map(card)) : null
+  ].filter(Boolean))
+}
+
 function showTab (tab) {
   state.tab = tab
   writeJSON(STORE.tab, tab)
@@ -707,6 +807,7 @@ function main () {
   })
   $('#tab-plan').addEventListener('click', () => showTab('plan'))
   $('#tab-shopping').addEventListener('click', () => showTab('shopping'))
+  $('#tab-wishes').addEventListener('click', () => showTab('wishes'))
   $('#save-btn').addEventListener('click', () => save('draft'))
   $('#confirm-btn').addEventListener('click', () => save('confirmed'))
   $('#propose-btn').addEventListener('click', newProposal)
