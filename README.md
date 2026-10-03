@@ -33,5 +33,6 @@ sign-in.
 1. Deploy the API: `apps-script/README.md`.
 2. GitHub → *Settings → Pages*: deploy from branch `main`, folder `/ (root)`. The
    whole repo is served because `web/` imports `../engine/`; the app is at
-   `https://<user>.github.io/<repo>/web/`.
+   `https://<user>.github.io/<repo>/web/`
+   (the root `index.html` redirects there).
 3. Add that origin to the OAuth client's authorized JavaScript origins.
