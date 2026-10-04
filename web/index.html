@@ -6,6 +6,13 @@
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#2f6b4f">
   <title>Menu di famiglia</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Menu">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="stylesheet" href="styles.css">
   <!-- Optional, git-ignored: see config.example.js. A 404 here is expected on GitHub Pages. -->
   <script src="config.js"></script>
@@ -19,6 +26,7 @@
 
   <main>
     <div id="status" class="status" role="status" hidden></div>
+    <p id="offline-banner" class="offline-banner" hidden>Sei offline: puoi consultare settimana, spesa e ricette. Per salvare serve la connessione.</p>
     <div id="signin" class="signin" hidden>
       <p>Accedi con l'account Google di famiglia per vedere il menu.</p>
       <div id="signin-button"></div>
@@ -47,8 +55,8 @@
       <div class="plan-bar">
         <p id="plan-status" class="small muted"></p>
         <div class="plan-actions">
-          <button id="save-btn" type="button" class="secondary">Salva bozza</button>
-          <button id="confirm-btn" type="button" class="primary">Conferma settimana</button>
+          <button id="save-btn" type="button" class="secondary" data-write>Salva bozza</button>
+          <button id="confirm-btn" type="button" class="primary" data-write>Conferma settimana</button>
         </div>
         <div class="plan-links">
           <button id="propose-btn" type="button" class="link-btn">Nuova proposta</button>
@@ -79,6 +87,10 @@
         <input name="clientId" type="text" placeholder="….apps.googleusercontent.com" autocomplete="off">
       </label>
       <p class="muted small">Restano salvati solo su questo telefono.</p>
+      <div id="install-box" class="install-box">
+        <button type="button" id="install-btn" class="secondary" hidden>Installa l'app sul telefono</button>
+        <p id="install-help" class="small muted"></p>
+      </div>
       <p id="settings-account" class="small"></p>
       <div class="actions">
         <button type="button" id="signout-btn" class="secondary">Esci</button>

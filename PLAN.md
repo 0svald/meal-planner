@@ -109,7 +109,7 @@ must read `pantry.json` too when it builds a shopping list (skill update, with D
 4. Sharing a link straight into the app (Web Share Target) comes with phase E,
    Android only.
 
-## Phase E — PWA
+## Phase E — PWA (done)
 
 1. `manifest.webmanifest` + icons, installable on Android and iOS.
 2. `sw.js`: cache the shell and the last data; offline shows the last plan and the
