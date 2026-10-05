@@ -33,11 +33,7 @@
     </div>
 
     <section id="week" hidden>
-      <div class="tabs" role="tablist">
-        <button id="tab-plan" type="button" role="tab" aria-selected="true">Settimana</button>
-        <button id="tab-shopping" type="button" role="tab" aria-selected="false">Spesa</button>
-        <button id="tab-wishes" type="button" role="tab" aria-selected="false">Ricette</button>
-      </div>
+      <div id="today-view" hidden></div>
 
       <nav class="week-nav" aria-label="Settimana">
         <button id="prev-week" type="button" aria-label="Settimana precedente">‹</button>
@@ -72,6 +68,25 @@
       <div id="wishes-view" hidden></div>
     </section>
   </main>
+
+  <nav id="bottom-nav" class="bottom-nav" aria-label="Sezioni" hidden>
+    <button id="nav-today" type="button" data-tab="today">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/><path d="M10 19.5v-5h4v5"/></svg>
+      <span>Oggi</span>
+    </button>
+    <button id="nav-plan" type="button" data-tab="plan">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><path d="M7.5 13h2M11 13h2M14.5 13h2M7.5 16.5h2M11 16.5h2"/></svg>
+      <span>Settimana</span>
+    </button>
+    <button id="nav-shopping" type="button" data-tab="shopping">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l-1.2 12.5H6.2z"/><path d="M9 10.5V7a3 3 0 0 1 6 0v3.5"/></svg>
+      <span>Spesa</span>
+    </button>
+    <button id="nav-wishes" type="button" data-tab="wishes">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12.5" r="5.5"/><path d="M3.5 4v5.5a1.8 1.8 0 0 0 3.6 0V4M5.3 4v17"/><path d="M20 4c-1.6.6-2.4 3-2.4 5.6v2.4H20M20 4v17"/></svg>
+      <span>Ricette</span>
+    </button>
+  </nav>
 
   <dialog id="sheet" class="sheet">
     <div id="sheet-body"></div>

@@ -2,7 +2,7 @@
 // meal, live feedback on the rules, save as draft or confirm.
 // Planning logic lives in ../engine/; this file fetches, renders and saves.
 
-import { mergeData, canteenWeek, mondayOf, addDays, isoWeekId, WEEKDAYS } from '../engine/data.js'
+import { mergeData, canteenWeek, mondayOf, addDays, isoWeekId, weekdayOf, WEEKDAYS } from '../engine/data.js'
 import { proposeWeek, evaluatePlan, slotOptions } from '../engine/planner.js'
 import { buildWeek, HOME_SLOTS } from '../engine/week.js'
 import { shoppingList, shoppingText, quantityNote, usesNote } from '../engine/shopping.js'
@@ -26,6 +26,7 @@ const DAY_NAMES = {
 }
 const SLOT_NAMES = { lunch: 'Pranzo', dinner: 'Cena' }
 const MONTHS = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic']
+const MONTHS_LONG = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
 
 const state = {
   data: null,
@@ -38,7 +39,8 @@ const state = {
   drafts: readJSON(STORE.drafts) || {},
   sheet: null,
   sharePrefill: null,
-  tab: ['shopping', 'wishes'].includes(readJSON(STORE.tab)) ? readJSON(STORE.tab) : 'plan'
+  tab: ['plan', 'shopping', 'wishes'].includes(readJSON(STORE.tab)) ? readJSON(STORE.tab) : 'today',
+  day: null
 }
 const $ = sel => document.querySelector(sel)
 
@@ -324,14 +326,17 @@ function renderFeedback (results) {
   const frequencies = results.filter(r => r.type === 'frequency')
   const others = results.filter(r => r.type !== 'frequency' && !r.satisfied && !r.slot)
   const broken = results.filter(r => r.type !== 'frequency' && !r.satisfied && r.slot)
-  $('#feedback').replaceChildren(...[
-    el('h2', {}, 'Equilibrio della settimana'),
+  const toImprove = frequencies.filter(r => !r.unavoidable && (!r.satisfied || r.penalty > 0)).length + others.length
+  const hard = results.some(r => r.severity === 'hard' && !r.unavoidable)
+  const summary = broken.length
+    ? `${broken.length} ${broken.length === 1 ? 'pasto da rivedere' : 'pasti da rivedere'}`
+    : toImprove ? `${toImprove} da migliorare` : 'tutto a posto'
+  const details = el('details', { class: 'feedback-details', open: hard },
+    el('summary', {}, el('span', {}, 'Equilibrio della settimana'), el('span', { class: `summary-note${hard ? ' bad' : ''}` }, summary)),
     el('ul', { class: 'chips' }, frequencies.map(chip)),
     others.length ? el('ul', { class: 'problems' }, others.map(r => el('li', { class: r.severity }, r.detail))) : null,
-    broken.length
-      ? el('p', { class: 'small muted' }, `${broken.length} ${broken.length === 1 ? 'pasto da rivedere' : 'pasti da rivedere'}: vedi i giorni segnati.`)
-      : el('p', { class: 'small muted' }, 'Nessun pasto viola le regole.')
-  ].filter(Boolean))
+    broken.length ? el('p', { class: 'small muted' }, 'I pasti da rivedere sono segnati nei giorni.') : null)
+  $('#feedback').replaceChildren(details)
 }
 
 function homeRow (date, slot, meals, results) {
@@ -356,7 +361,7 @@ function homeRow (date, slot, meals, results) {
   )
 }
 
-const TABS = ['plan', 'shopping', 'wishes']
+const TABS = ['today', 'plan', 'shopping', 'wishes']
 
 // Offline the app is read-only: everything stays visible (and the week can
 // still be edited on the phone), but nothing that writes to Drive can start.
@@ -375,16 +380,19 @@ function render () {
 function renderView () {
   if (!state.data) return
   $('#week').hidden = false
+  $('#bottom-nav').hidden = false
   for (const tab of TABS) {
-    $(`#tab-${tab}`).setAttribute('aria-selected', String(state.tab === tab))
+    if (state.tab === tab) $(`#nav-${tab}`).setAttribute('aria-current', 'page')
+    else $(`#nav-${tab}`).removeAttribute('aria-current')
     $(`#${tab}-view`).hidden = state.tab !== tab
   }
-  // The recipe wishlist does not belong to a week.
-  $('.week-nav').hidden = state.tab === 'wishes'
-  if (state.tab === 'wishes') {
+  // Today and the recipe wishlist have their own header, without the week.
+  const ownHeader = state.tab === 'today' || state.tab === 'wishes'
+  $('.week-nav').hidden = ownHeader
+  if (ownHeader) {
     $('#this-week').hidden = true
     $('#week-notice').hidden = true
-    return renderWishes()
+    return state.tab === 'today' ? renderToday() : renderWishes()
   }
   const weekStart = state.weekStart
   const draft = draftFor(weekStart)
@@ -447,6 +455,99 @@ function showWeek () {
 function moveWeek (delta) {
   state.weekStart = addDays(state.weekStart, 7 * delta)
   showWeek()
+}
+
+// --- today -------------------------------------------------------------------
+
+function longDate (date) {
+  const [, m, d] = date.split('-').map(Number)
+  return `${d} ${MONTHS_LONG[m - 1]}`
+}
+
+function dayTitle (date) {
+  const t = today()
+  if (date === t) return 'Oggi'
+  if (date === addDays(t, 1)) return 'Domani'
+  if (date === addDays(t, -1)) return 'Ieri'
+  return DAY_NAMES[weekdayOf(date)]
+}
+
+function moveDay (delta) {
+  state.day = addDays(state.day, delta)
+  state.weekStart = mondayOf(state.day)
+  showWeek()
+}
+
+// One meal as a card: the dishes one per line with their course. Home meals
+// open the edit sheet; canteen lunches are read-only.
+function mealCard (label, meal, { key = null, problems = [], canteen = null } = {}) {
+  const main = meal ? meal.dishes.filter(d => !MINOR_COURSES.has(d.course)) : []
+  const minor = meal ? meal.dishes.filter(d => MINOR_COURSES.has(d.course)) : []
+  const hard = problems.some(r => r.severity === 'hard')
+  const body = [
+    el('div', { class: 'meal-card-head' },
+      el('span', { class: 'meal-card-label' }, label),
+      canteen ? el('span', { class: 'badge' }, 'mensa') : null,
+      key ? el('span', { class: 'chev', 'aria-hidden': 'true' }, '›') : null),
+    main.length
+      ? el('ul', { class: 'meal-dishes' }, main.map(d => el('li', {},
+        el('span', { class: 'meal-dish' }, d.name),
+        el('span', { class: 'meal-course' }, COURSE_LABELS[d.course] || ''))))
+      : el('p', { class: 'meal-empty' }, key ? 'Da scegliere: tocca per le proposte' : 'Nessun pasto in mensa'),
+    canteen && canteen.alternatives.length
+      ? el('p', { class: 'small muted' }, `In alternativa: ${canteen.alternatives.join(', ')}`)
+      : null,
+    minor.length ? el('p', { class: 'small muted' }, minor.map(d => d.name).join(' · ')) : null,
+    problems.length ? el('ul', { class: 'problems' }, problems.map(r => el('li', { class: r.severity }, r.detail))) : null
+  ]
+  const cls = `meal-card${hard ? ' bad' : problems.length ? ' warn' : ''}${key ? ' editable' : ''}`
+  return key
+    ? el('button', { type: 'button', class: cls, 'data-key': key, onclick: () => openSheet(key) }, ...body)
+    : el('section', { class: cls }, ...body)
+}
+
+function renderToday () {
+  if (!state.day) state.day = today()
+  const date = state.day
+  const weekStart = mondayOf(date)
+  if (state.weekStart !== weekStart) state.weekStart = weekStart
+  const draft = draftFor(weekStart)
+  const saved = savedPlan(weekStart)
+  const week = buildWeek(state.data, weekStart, { plan: draft.plan })
+  const { results } = evaluatePlan({ data: state.data, weekStart, plan: draft.plan })
+  const weekday = weekdayOf(date)
+  const homeSlots = HOME_SLOTS.filter(s => s.weekday === weekday).map(s => s.slot)
+  const problemsOf = key => results.filter(r => r.slot === key && !r.satisfied && !r.unavoidable)
+
+  const cards = ['lunch', 'dinner'].map(slot => {
+    const key = `${date}/${slot}`
+    const meal = week.meals.find(m => m.date === date && m.slot === slot)
+    if (homeSlots.includes(slot)) return mealCard(SLOT_NAMES[slot], meal, { key, problems: problemsOf(key) })
+    // Canteen lunch: show what the children eat, with the printed alternatives.
+    const canteenDay = canteenWeek(state.data, weekStart)?.days.find(d => d.date === date)
+    const alternatives = canteenDay
+      ? canteenDay.items.filter(i => !MINOR_COURSES.has(i.course) && i.options.length > 1)
+        .flatMap(i => i.options.slice(1).map(d => d.name))
+      : []
+    return mealCard(SLOT_NAMES[slot], meal, { canteen: { alternatives } })
+  })
+
+  const status = planStatusLine(draft, saved)
+  $('#today-view').replaceChildren(...[
+    el('nav', { class: 'day-nav', 'aria-label': 'Giorno' },
+      el('button', { type: 'button', 'aria-label': 'Giorno precedente', onclick: () => moveDay(-1) }, '‹'),
+      el('div', { class: 'day-title' },
+        el('div', { class: 'day-name' }, dayTitle(date)),
+        el('div', { class: 'muted' }, `${DAY_NAMES[weekday].toLowerCase()} ${longDate(date)}`)),
+      el('button', { type: 'button', 'aria-label': 'Giorno successivo', onclick: () => moveDay(1) }, '›')),
+    date !== today()
+      ? el('button', { type: 'button', class: 'link-btn', onclick: () => { state.day = today(); moveDay(0) } }, 'Torna a oggi')
+      : null,
+    el('div', { class: 'meal-cards' }, cards),
+    el('div', { class: 'today-foot' },
+      status ? el('p', { class: 'small muted' }, status) : null,
+      el('button', { type: 'button', class: 'link-btn', onclick: () => showTab('plan') }, 'Vedi tutta la settimana'))
+  ].filter(Boolean))
 }
 
 // --- shopping list -----------------------------------------------------------
@@ -725,8 +826,13 @@ function renderWishes () {
 
 function showTab (tab) {
   state.tab = tab
-  writeJSON(STORE.tab, tab)
-  render()
+  writeJSON(STORE.tab, tab === 'today' ? null : tab)
+  if (tab === 'today') {
+    state.day = today()
+    state.weekStart = mondayOf(state.day)
+  }
+  window.scrollTo(0, 0)
+  showWeek()
 }
 
 // --- meal sheet --------------------------------------------------------------
@@ -870,7 +976,8 @@ function readShareTarget () {
 }
 
 function main () {
-  state.weekStart = mondayOf(today())
+  state.day = today()
+  state.weekStart = mondayOf(state.day)
   registerServiceWorker()
   setupInstall()
   readShareTarget()
@@ -897,9 +1004,7 @@ function main () {
     state.weekStart = mondayOf(today())
     moveWeek(0)
   })
-  $('#tab-plan').addEventListener('click', () => showTab('plan'))
-  $('#tab-shopping').addEventListener('click', () => showTab('shopping'))
-  $('#tab-wishes').addEventListener('click', () => showTab('wishes'))
+  for (const tab of TABS) $(`#nav-${tab}`).addEventListener('click', () => showTab(tab))
   $('#save-btn').addEventListener('click', () => save('draft'))
   $('#confirm-btn').addEventListener('click', () => save('confirmed'))
   $('#propose-btn').addEventListener('click', newProposal)
