@@ -18,7 +18,7 @@ Engine: `docs/engine.md`.
 | --- | --- |
 | `engine/` | shared rules engine, pure ES modules (browser + Node) |
 | `scripts/propose.js` | prints the proposals for a week (Node) |
-| `web/` | the static page served by GitHub Pages: home "Oggi" with the day's meals, bottom bar to Settimana (calendar), Spesa and Ricette (`app.js` screen, `api.js` calls, `storage.js` cache) |
+| `web/` | the static page served by GitHub Pages: home "Oggi" with the day's meals (swipe left/right to change day), bottom bar to Settimana (calendar), Spesa and Ricette (`app.js` screen, `api.js` calls, `storage.js` cache) |
 | `apps-script/` | data API on Google Drive; deployment steps in its README |
 | `fixtures/` | anonymised sample data (public Olbia canteen menu, week 1) |
 | `docs/` | data model (mirrored from the skill) and engine (`engine.md`) |

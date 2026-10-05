@@ -39,6 +39,7 @@ const state = {
   drafts: readJSON(STORE.drafts) || {},
   sheet: null,
   sharePrefill: null,
+  slide: null,
   tab: ['plan', 'shopping', 'wishes'].includes(readJSON(STORE.tab)) ? readJSON(STORE.tab) : 'today',
   day: null
 }
@@ -475,7 +476,37 @@ function dayTitle (date) {
 function moveDay (delta) {
   state.day = addDays(state.day, delta)
   state.weekStart = mondayOf(state.day)
+  state.slide = delta > 0 ? 'from-right' : delta < 0 ? 'from-left' : null
   showWeek()
+}
+
+// Swipe left / right on the "Oggi" view to move to the next / previous day.
+// Only clearly horizontal, quick gestures count, so vertical scrolling and
+// taps on the meal cards keep working as before.
+const SWIPE_MIN_PX = 60
+const SWIPE_MAX_MS = 1000
+
+function setupSwipe (target) {
+  let start = null
+  target.addEventListener('touchstart', event => {
+    if (event.touches.length !== 1 || document.querySelector('dialog[open]')) {
+      start = null
+      return
+    }
+    const t = event.touches[0]
+    start = { x: t.clientX, y: t.clientY, time: Date.now() }
+  }, { passive: true })
+  target.addEventListener('touchend', event => {
+    if (!start || state.tab !== 'today') return
+    const t = event.changedTouches[0]
+    const dx = t.clientX - start.x
+    const dy = t.clientY - start.y
+    const quick = Date.now() - start.time <= SWIPE_MAX_MS
+    start = null
+    if (!quick || Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < 1.5 * Math.abs(dy)) return
+    moveDay(dx < 0 ? 1 : -1)
+  }, { passive: true })
+  target.addEventListener('touchcancel', () => { start = null }, { passive: true })
 }
 
 // One meal as a card: the dishes one per line with their course. Home meals
@@ -533,7 +564,14 @@ function renderToday () {
   })
 
   const status = planStatusLine(draft, saved)
-  $('#today-view').replaceChildren(...[
+  const view = $('#today-view')
+  view.classList.remove('from-right', 'from-left')
+  if (state.slide) {
+    void view.offsetWidth // restart the animation
+    view.classList.add(state.slide)
+    state.slide = null
+  }
+  view.replaceChildren(...[
     el('nav', { class: 'day-nav', 'aria-label': 'Giorno' },
       el('button', { type: 'button', 'aria-label': 'Giorno precedente', onclick: () => moveDay(-1) }, '‹'),
       el('div', { class: 'day-title' },
@@ -1005,6 +1043,7 @@ function main () {
     moveWeek(0)
   })
   for (const tab of TABS) $(`#nav-${tab}`).addEventListener('click', () => showTab(tab))
+  setupSwipe($('#today-view'))
   $('#save-btn').addEventListener('click', () => save('draft'))
   $('#confirm-btn').addEventListener('click', () => save('confirmed'))
   $('#propose-btn').addEventListener('click', newProposal)

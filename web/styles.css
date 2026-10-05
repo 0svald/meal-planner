@@ -591,3 +591,17 @@ main { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
   overflow: hidden;
 }
 .slot-btn { min-height: 40px; padding: 6px 10px; font-size: 0.95rem; }
+
+/* --- swipe between days on "Oggi" --- */
+
+#today-view { touch-action: pan-y; }
+#today-view.from-right .meal-cards,
+#today-view.from-right .day-title { animation: slide-from-right 0.2s ease-out; }
+#today-view.from-left .meal-cards,
+#today-view.from-left .day-title { animation: slide-from-left 0.2s ease-out; }
+@keyframes slide-from-right { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes slide-from-left { from { transform: translateX(-40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  #today-view .meal-cards,
+  #today-view .day-title { animation: none !important; }
+}
