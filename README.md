@@ -5,11 +5,12 @@ lunches, and turn the plan into a shopping list. Companion to the
 `family-meal-planner` Claude skill. See `CLAUDE.md` for the constraints and
 `PLAN.md` for the build phases.
 
-Status: **phase D2**: the week day by day with three options per meal and live
-feedback on the rules, saved to Drive (`plans.json`); the shopping list of the
-week, checkable and shared in one tap, with the pantry edited in the app
-(`pantry.json`); the recipe wishlist (`wishlist.json`) for the skill to load
-(`docs/skill-integration.md`). Next: PWA (E). Engine: `docs/engine.md`.
+Status: **phase E**, all phases of `PLAN.md` built: the week with three options
+per meal and live feedback on the rules (`plans.json`); the shopping list,
+checkable and shared in one tap, with the pantry edited in the app
+(`pantry.json`); the recipe wishlist for the skill to load (`wishlist.json`,
+`docs/skill-integration.md`); installable, and it opens without a connection.
+Engine: `docs/engine.md`.
 
 ## Layout
 
@@ -42,3 +43,15 @@ sign-in.
    `https://<user>.github.io/<repo>/web/`
    (the root `index.html` redirects there).
 3. Add that origin to the OAuth client's authorized JavaScript origins.
+
+## Install on the phone
+
+- **Android (Chrome)**: open the app, then ⚙︎ → "Installa l'app sul telefono",
+  or the browser menu → "Installa app". Once installed, "Menu" appears in the
+  share sheet: sharing a recipe link opens the Ricette tab with the form filled.
+- **iPhone (Safari)**: Condividi → "Aggiungi alla schermata Home". iOS has no
+  share target: copy and paste links into the Ricette tab.
+
+Offline the app opens from the service worker (`web/sw.js`, network-first: online
+you always get the latest version) and shows the last data it loaded; saving is
+disabled until the connection is back, and unsaved week edits stay on the phone.

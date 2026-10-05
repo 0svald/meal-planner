@@ -37,6 +37,7 @@ const state = {
   // are kept in localStorage so closing the app does not lose them.
   drafts: readJSON(STORE.drafts) || {},
   sheet: null,
+  sharePrefill: null,
   tab: ['shopping', 'wishes'].includes(readJSON(STORE.tab)) ? readJSON(STORE.tab) : 'plan'
 }
 const $ = sel => document.querySelector(sel)
@@ -357,7 +358,21 @@ function homeRow (date, slot, meals, results) {
 
 const TABS = ['plan', 'shopping', 'wishes']
 
+// Offline the app is read-only: everything stays visible (and the week can
+// still be edited on the phone), but nothing that writes to Drive can start.
+function applyOnlineState () {
+  const offline = !navigator.onLine
+  document.body.classList.toggle('offline', offline)
+  for (const b of document.querySelectorAll('[data-write]')) b.disabled = offline
+  $('#offline-banner').hidden = !offline
+}
+
 function render () {
+  renderView()
+  applyOnlineState()
+}
+
+function renderView () {
   if (!state.data) return
   $('#week').hidden = false
   for (const tab of TABS) {
@@ -521,7 +536,7 @@ function renderShopping (draft, saved) {
     list.items.length
       ? el('div', { class: 'shopping-actions' },
         el('button', { type: 'button', class: 'primary', onclick: shareList }, `Condividi (${toBuy} da comprare)`),
-        el('button', { type: 'button', class: 'secondary', onclick: saveListToDrive }, 'Salva su Drive'))
+        el('button', { type: 'button', class: 'secondary', 'data-write': true, onclick: saveListToDrive }, 'Salva su Drive'))
       : el('p', { class: 'notice' }, 'Nessun ingrediente: scegli prima i pasti della settimana.'),
     ...list.aisles.map(a => el('section', { class: 'aisle' },
       el('h2', {}, a.label),
@@ -598,13 +613,14 @@ function renderPantry (list) {
         el('button', {
           type: 'button',
           class: 'remove',
+          'data-write': true,
           'aria-label': `Togli ${name} dalla dispensa`,
           onclick: () => changePantry({ remove: [name] })
         }, '×'))))
       : el('p', { class: 'small muted' }, 'La dispensa è vuota.'),
     el('form', { class: 'pantry-add', onsubmit: add },
       input,
-      el('button', { type: 'submit', class: 'secondary' }, 'Aggiungi')),
+      el('button', { type: 'submit', class: 'secondary', 'data-write': true }, 'Aggiungi')),
     el('datalist', { id: 'pantry-suggest' }, suggestions.map(n => el('option', { value: n })))
   )
 }
@@ -651,7 +667,7 @@ function renderWishes () {
       el('input', { name: 'url', type: 'url', maxlength: '500', placeholder: 'https://…', autocomplete: 'off' })),
     el('label', {}, 'Nota (facoltativa)',
       el('input', { name: 'note', type: 'text', maxlength: '300', placeholder: 'es. senza forno, piaciuta dai nonni', autocomplete: 'off' })),
-    el('button', { type: 'submit', class: 'primary' }, 'Aggiungi alla lista'))
+    el('button', { type: 'submit', class: 'primary', 'data-write': true }, 'Aggiungi alla lista'))
   form.addEventListener('submit', event => {
     event.preventDefault()
     const wish = { name: form.name.value.trim(), url: form.url.value.trim(), note: form.note.value.trim() }
@@ -677,12 +693,22 @@ function renderWishes () {
       el('button', {
         type: 'button',
         class: 'link-btn',
+        'data-write': true,
         onclick: () => {
           if (confirm(`Togliere «${w.name}» dalla lista?`)) changeWishes(() => api.removeWish(w.id))
         }
       }, 'Togli')))
 
   const pending = wishes.filter(w => w.status === 'pending').length
+  // A link shared from another app (Android share sheet) fills the form once.
+  if (state.sharePrefill) {
+    form.name.value = state.sharePrefill.name
+    form.url.value = state.sharePrefill.url
+    form.note.value = state.sharePrefill.note
+    state.sharePrefill = null
+    setTimeout(() => form.name.focus(), 0)
+  }
+
   $('#wishes-view').replaceChildren(...[
     el('section', { class: 'aisle' },
       el('h2', {}, 'Ricette da provare'),
@@ -788,8 +814,74 @@ function onSettingsClose () {
 
 // --- start -------------------------------------------------------------------
 
+// --- installable app (PWA) ---------------------------------------------------
+
+let installPrompt = null
+
+function registerServiceWorker () {
+  if (!('serviceWorker' in navigator)) return
+  navigator.serviceWorker.register('sw.js').catch(() => {})
+}
+
+function setupInstall () {
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent)
+  const help = $('#install-help')
+  if (standalone) help.textContent = 'L\'app è installata su questo telefono.'
+  else if (ios) help.textContent = 'Per installarla su iPhone: in Safari tocca Condividi, poi «Aggiungi alla schermata Home».'
+  else help.textContent = 'Per installarla: dal menu del browser scegli «Installa app» o «Aggiungi a schermata Home».'
+  window.addEventListener('beforeinstallprompt', event => {
+    event.preventDefault()
+    installPrompt = event
+    $('#install-btn').hidden = false
+  })
+  $('#install-btn').addEventListener('click', async () => {
+    if (!installPrompt) return
+    installPrompt.prompt()
+    await installPrompt.userChoice.catch(() => null)
+    installPrompt = null
+    $('#install-btn').hidden = true
+  })
+  window.addEventListener('appinstalled', () => {
+    $('#install-btn').hidden = true
+    help.textContent = 'L\'app è installata su questo telefono.'
+  })
+}
+
+// Android share sheet -> ?share_title=&share_text=&share_url= (manifest
+// share_target): open the recipe wishlist with the form filled in.
+function readShareTarget () {
+  const params = new URLSearchParams(location.search)
+  if (!['share_title', 'share_text', 'share_url'].some(k => params.has(k))) return
+  const title = (params.get('share_title') || '').trim()
+  let text = (params.get('share_text') || '').trim()
+  let url = (params.get('share_url') || '').trim()
+  const inText = text.match(/https?:\/\/\S+/)
+  if (!url && inText) url = inText[0]
+  if (inText) text = text.replace(inText[0], '').trim()
+  const name = (title || text).slice(0, 80)
+  state.sharePrefill = { name, url: url.slice(0, 500), note: title ? text.slice(0, 300) : '' }
+  state.tab = 'wishes'
+  params.delete('share_title')
+  params.delete('share_text')
+  params.delete('share_url')
+  const rest = params.toString()
+  history.replaceState(null, '', location.pathname + (rest ? `?${rest}` : ''))
+}
+
 function main () {
   state.weekStart = mondayOf(today())
+  registerServiceWorker()
+  setupInstall()
+  readShareTarget()
+  window.addEventListener('offline', () => {
+    applyOnlineState()
+    if (state.data) showOffline()
+  })
+  window.addEventListener('online', () => {
+    applyOnlineState()
+    refresh()
+  })
   api.setSignInUi({
     show: () => { $('#signin').hidden = false },
     hide: () => { $('#signin').hidden = true },
@@ -838,7 +930,6 @@ function main () {
       writeJSON(STORE.cache, null)
     }
   }
-  window.addEventListener('online', () => refresh())
   refresh()
 }
 

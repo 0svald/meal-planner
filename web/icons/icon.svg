@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Plate, fork and knife on the app green. Full-bleed so it also works as a
+       maskable icon: the drawing stays inside the central 80% safe zone. -->
+  <rect width="512" height="512" fill="#2f6b4f"/>
+  <circle cx="256" cy="262" r="118" fill="#f6f4ef"/>
+  <circle cx="256" cy="262" r="84" fill="none" stroke="#2f6b4f" stroke-width="10" opacity="0.35"/>
+  <g fill="#f6f4ef">
+    <rect x="96" y="150" width="14" height="96" rx="7"/>
+    <rect x="120" y="150" width="14" height="96" rx="7"/>
+    <rect x="144" y="150" width="14" height="96" rx="7"/>
+    <path d="M96 236h62v20c0 14-10 24-22 26v96a9 9 0 0 1-18 0v-96c-12-2-22-12-22-26z"/>
+    <path d="M378 150c26 10 38 50 38 92v40h-20v96a9 9 0 0 1-18 0z"/>
+  </g>
+</svg>
