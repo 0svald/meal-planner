@@ -21,7 +21,7 @@ const COURSE_LABELS = {
   takeaway: 'Asporto'
 }
 // Shown in the settings, to tell which version a phone runs. Bump on release.
-const APP_VERSION = '2026-10-10'
+const APP_VERSION = '2026-10-11'
 const MINOR_COURSES = new Set(['bread', 'fruit', 'dessert'])
 const DAY_NAMES = {
   mon: 'Lunedì', tue: 'Martedì', wed: 'Mercoledì', thu: 'Giovedì', fri: 'Venerdì', sat: 'Sabato', sun: 'Domenica'
@@ -588,13 +588,8 @@ function renderToday () {
         el('div', { class: 'day-name' }, dayTitle(date)),
         el('div', { class: 'muted' }, `${DAY_NAMES[weekday].toLowerCase()} ${longDate(date)}`)),
       el('button', { type: 'button', 'aria-label': 'Giorno successivo', onclick: () => moveDay(1) }, '›')),
-    date !== today()
-      ? el('button', { type: 'button', class: 'link-btn', onclick: () => { state.day = today(); moveDay(0) } }, 'Torna a oggi')
-      : null,
     el('div', { class: 'meal-cards' }, cards),
-    el('div', { class: 'today-foot' },
-      status ? el('p', { class: 'small muted' }, status) : null,
-      el('button', { type: 'button', class: 'link-btn', onclick: () => showTab('plan') }, 'Vedi tutta la settimana'))
+    status ? el('div', { class: 'today-foot' }, el('p', { class: 'small muted' }, status)) : null
   ].filter(Boolean))
 }
 
