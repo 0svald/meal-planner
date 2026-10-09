@@ -594,7 +594,7 @@ main { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
 
 /* --- swipe between days on "Oggi" --- */
 
-#today-view { touch-action: pan-y; }
+body.tab-today main { touch-action: pan-y; }
 #today-view.from-right .meal-cards,
 #today-view.from-right .day-title { animation: slide-from-right 0.2s ease-out; }
 #today-view.from-left .meal-cards,

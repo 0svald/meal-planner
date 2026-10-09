@@ -55,3 +55,5 @@ sign-in.
 Offline the app opens from the service worker (`web/sw.js`, network-first: online
 you always get the latest version) and shows the last data it loaded; saving is
 disabled until the connection is back, and unsaved week edits stay on the phone.
+⚙︎ shows the app version (`APP_VERSION` in `web/app.js`, bump it on release) and
+"Aggiorna all'ultima versione" drops the offline copy and reloads.

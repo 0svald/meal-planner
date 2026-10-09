@@ -20,6 +20,8 @@ const COURSE_LABELS = {
   dessert: 'Dolce',
   takeaway: 'Asporto'
 }
+// Shown in the settings, to tell which version a phone runs. Bump on release.
+const APP_VERSION = '2026-10-09'
 const MINOR_COURSES = new Set(['bread', 'fruit', 'dessert'])
 const DAY_NAMES = {
   mon: 'Lunedì', tue: 'Martedì', wed: 'Mercoledì', thu: 'Giovedì', fri: 'Venerdì', sat: 'Sabato', sun: 'Domenica'
@@ -380,6 +382,7 @@ function render () {
 
 function renderView () {
   if (!state.data) return
+  document.body.classList.toggle('tab-today', state.tab === 'today')
   $('#week').hidden = false
   $('#bottom-nav').hidden = false
   for (const tab of TABS) {
@@ -486,10 +489,13 @@ function moveDay (delta) {
 const SWIPE_MIN_PX = 60
 const SWIPE_MAX_MS = 1000
 
+// The whole page area counts (also the empty space under the cards), except
+// the bottom bar, form fields and open dialogs.
 function setupSwipe (target) {
   let start = null
   target.addEventListener('touchstart', event => {
-    if (event.touches.length !== 1 || document.querySelector('dialog[open]')) {
+    const ignore = event.target.closest && event.target.closest('.bottom-nav, dialog, input, textarea, select')
+    if (state.tab !== 'today' || event.touches.length !== 1 || ignore || document.querySelector('dialog[open]')) {
       start = null
       return
     }
@@ -943,7 +949,22 @@ function openSettings () {
   form.endpoint.value = cfg.endpoint || ''
   form.clientId.value = cfg.clientId || ''
   $('#settings-account').textContent = state.email ? `Accesso come ${state.email}` : ''
+  $('#app-version').textContent = `Versione dell'app: ${APP_VERSION}`
   $('#settings').showModal()
+}
+
+// Drop the offline copy of the app and load the latest published version.
+// Data and unsaved edits in localStorage are kept.
+async function updateApp () {
+  showStatus('Scarico l\'ultima versione…', 'info')
+  try {
+    if ('caches' in window) for (const key of await caches.keys()) await caches.delete(key)
+    const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null
+    if (reg) await reg.update()
+  } catch {
+    // Reloading is enough when the cache cannot be cleared.
+  }
+  location.reload()
 }
 
 function onSettingsClose () {
@@ -1043,12 +1064,13 @@ function main () {
     moveWeek(0)
   })
   for (const tab of TABS) $(`#nav-${tab}`).addEventListener('click', () => showTab(tab))
-  setupSwipe($('#today-view'))
+  setupSwipe(document)
   $('#save-btn').addEventListener('click', () => save('draft'))
   $('#confirm-btn').addEventListener('click', () => save('confirmed'))
   $('#propose-btn').addEventListener('click', newProposal)
   $('#discard-btn').addEventListener('click', discardChanges)
   $('#settings-btn').addEventListener('click', openSettings)
+  $('#update-btn').addEventListener('click', updateApp)
   $('#settings').addEventListener('close', onSettingsClose)
   $('#signout-btn').addEventListener('click', async () => {
     $('#settings').close()
