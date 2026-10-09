@@ -605,3 +605,30 @@ body.tab-today main { touch-action: pan-y; }
   #today-view .meal-cards,
   #today-view .day-title { animation: none !important; }
 }
+
+/* --- settings: family, advanced --- */
+
+#settings { max-height: 90vh; overflow-y: auto; }
+.settings h3 { margin: 0 0 6px; font-size: 1rem; }
+.settings-section { margin: 12px 0; padding-top: 12px; border-top: 1px solid var(--border); }
+.members { list-style: none; margin: 0 0 8px; padding: 0; }
+.members li { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; }
+.members li + li { border-top: 1px solid var(--border); }
+.member-email { overflow-wrap: anywhere; }
+.members .link-btn { margin: 0; }
+.invite-form { display: flex; gap: 8px; }
+.invite-form input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+.invite-form button { min-height: 44px; padding: 0 14px; border-radius: 10px; border: 0; background: var(--accent); color: var(--on-accent); font-weight: 600; }
+#advanced summary { cursor: pointer; min-height: 32px; font-weight: 600; }
+#advanced form { margin-top: 8px; }
+#advanced form button { min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); }

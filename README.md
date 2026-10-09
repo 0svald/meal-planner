@@ -31,9 +31,10 @@ node scripts/propose.js     # proposals for the fixture week
 python3 -m http.server 8000 # then open http://localhost:8000/web/?demo
 ```
 
-`?demo` reads `fixtures/` and needs no backend. Without it, the page asks (⚙︎) for
-the Apps Script `/exec` URL and the Google OAuth client id, then for a Google
-sign-in.
+`?demo` reads `fixtures/` and needs no backend. Without it, the page needs the
+Apps Script `/exec` address: the family gets it through an invitation link
+(⚙︎ → Famiglia → Invita, sent by the script from the owner's Gmail); the owner
+pastes it once in ⚙︎ → Avanzate. The OAuth client id comes from the script.
 
 ## Publish
 
@@ -43,6 +44,8 @@ sign-in.
    `https://<user>.github.io/<repo>/web/`
    (the root `index.html` redirects there).
 3. Add that origin to the OAuth client's authorized JavaScript origins.
+4. Owner: open the app, ⚙︎ → Avanzate, paste the `/exec` address, sign in; then
+   ⚙︎ → Famiglia → Invita for each person.
 
 ## Install on the phone
 

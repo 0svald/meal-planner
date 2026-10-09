@@ -7,6 +7,8 @@
 // Script Properties (Project settings > Script properties):
 //   FOLDER_ID   id of the family-meal-planner folder
 //   ALLOWED     comma-separated list of the Google accounts allowed to use the API
+//               (managed from the app by the owner; the owner is always allowed)
+//   ADMINS      optional: more accounts that may invite and remove members
 //   CLIENT_ID   OAuth client id of the web page (Google Identity Services)
 //
 // Every response is HTTP 200 (ContentService cannot set a status code); the
@@ -26,10 +28,13 @@ var MAX_CACHE_SECONDS = 21600; // CacheService limit (6 hours)
 function doGet(e) {
   var params = (e && e.parameter) || {};
   try {
+    // Public: the OAuth client id is not a secret, and the page needs it to
+    // show "Accedi con Google" before it has a token. Nothing else is public.
+    if (params.resource === 'config') return json_({ ok: true, resource: 'config', client_id: property_('CLIENT_ID') });
     var email = authenticate_(params.id_token);
     var name = params.resource;
     if (name === 'all') {
-      var out = { ok: true, resource: 'all', email: email, resources: {} };
+      var out = { ok: true, resource: 'all', email: email, admin: isAdmin_(email), resources: {} };
       Object.keys(RESOURCES).forEach(function (key) {
         out.resources[key] = readResource_(key);
       });
@@ -51,6 +56,9 @@ function doGet(e) {
 //   {id_token, action: 'updatePantry', add: [...], remove: [...]}
 //   {id_token, action: 'addWish', name, url?, note?}
 //   {id_token, action: 'removeWish', id}
+//   {id_token, action: 'listMembers'}                          (admin only)
+//   {id_token, action: 'inviteMember', email, app_url, endpoint} (admin only)
+//   {id_token, action: 'removeMember', email}                  (admin only)
 // `base_updated_at` is the `updated_at` of plans.json the app loaded (null if
 // the file did not exist): if someone saved in between, the write is refused
 // with 409 and the app reloads. The last confirmed write wins.
@@ -68,6 +76,9 @@ function doPost(e) {
     if (body.action === 'updatePantry') return json_(updatePantry_(body.add, body.remove, email));
     if (body.action === 'addWish') return json_(addWish_(body, email));
     if (body.action === 'removeWish') return json_(removeWish_(body.id, email));
+    if (body.action === 'listMembers') return json_(listMembers_(email));
+    if (body.action === 'inviteMember') return json_(inviteMember_(body, email));
+    if (body.action === 'removeMember') return json_(removeMember_(body.email, email));
     throw apiError_(400, 'bad_action', 'unknown action');
   } catch (err) {
     return errorOutput_(err);
@@ -120,9 +131,114 @@ function verifyIdToken_(token) {
 }
 
 function allowedEmails_() {
-  return property_('ALLOWED').split(',').map(function (s) {
+  var list = PropertiesService.getScriptProperties().getProperty('ALLOWED') || '';
+  var emails = list.split(',').map(function (s) {
     return s.trim().toLowerCase();
   }).filter(function (s) { return s; });
+  var owner = ownerEmail_();
+  if (owner && emails.indexOf(owner) === -1) emails.unshift(owner);
+  return emails;
+}
+
+// --- family members ----------------------------------------------------------
+// The owner of the script (who deployed it, and whose Drive holds the data)
+// manages who may use the app: the allowlist lives in the ALLOWED property.
+// Further admins can be listed in the optional ADMINS property.
+
+function ownerEmail_() {
+  var user = Session.getEffectiveUser();
+  return user ? String(user.getEmail() || '').toLowerCase() : '';
+}
+
+function isAdmin_(email) {
+  var admins = (PropertiesService.getScriptProperties().getProperty('ADMINS') || '').split(',')
+    .map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return s; });
+  var owner = ownerEmail_();
+  if (owner) admins.push(owner);
+  return admins.indexOf(email) !== -1;
+}
+
+function requireAdmin_(email) {
+  if (!isAdmin_(email)) throw apiError_(403, 'not_admin', 'Only the owner can manage the family');
+}
+
+function membersView_() {
+  var owner = ownerEmail_();
+  return allowedEmails_().map(function (m) { return { email: m, owner: m === owner, admin: isAdmin_(m) }; });
+}
+
+function saveAllowed_(emails) {
+  var owner = ownerEmail_();
+  var list = emails.filter(function (m) { return m !== owner; });
+  PropertiesService.getScriptProperties().setProperty('ALLOWED', list.join(','));
+}
+
+function listMembers_(email) {
+  requireAdmin_(email);
+  return { ok: true, action: 'listMembers', members: membersView_() };
+}
+
+var EMAIL_RE = /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/;
+var ENDPOINT_RE = /^https:\/\/script\.google\.com\/[\w\/.-]+\/exec$/;
+
+// Adds the address to the allowlist and sends the invitation: a link to the
+// app with the API address in the fragment (#invito=...), which browsers never
+// send to GitHub. The page reads it, keeps it, and asks for the Google sign-in.
+function inviteMember_(body, email) {
+  requireAdmin_(email);
+  var to = String(body.email || '').trim().toLowerCase();
+  if (!EMAIL_RE.test(to)) throw apiError_(422, 'invalid_member', 'email is not valid');
+  var appUrl = String(body.app_url || '');
+  if (!/^https:\/\/[^\s#?]+$/.test(appUrl)) throw apiError_(422, 'invalid_member', 'app_url must be an https URL without query or fragment');
+  var endpoint = String(body.endpoint || '');
+  if (!ENDPOINT_RE.test(endpoint)) throw apiError_(422, 'invalid_member', 'endpoint must be the /exec URL');
+
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw apiError_(503, 'busy', 'Another save is in progress, retry');
+  try {
+    var emails = allowedEmails_();
+    if (emails.indexOf(to) === -1) emails.push(to);
+    saveAllowed_(emails);
+  } finally {
+    lock.releaseLock();
+  }
+
+  var link = appUrl + '#invito=' + Utilities.base64EncodeWebSafe(endpoint).replace(/=+$/, '');
+  var subject = 'Invito al Menu di famiglia';
+  var text = 'Ciao,\n\n' + email + ' ti ha invitato a usare il Menu di famiglia: il menu della settimana, ' +
+    'la lista della spesa e le ricette da provare.\n\n' +
+    'Apri questo link dal telefono e accedi con questo indirizzo Google (' + to + '):\n' + link + '\n\n' +
+    'Poi, dal menu di Chrome, scegli «Installa app» per averla nella schermata Home.\n';
+  var html = '<p>Ciao,</p><p>' + escapeHtml_(email) + ' ti ha invitato a usare il <b>Menu di famiglia</b>: ' +
+    'il menu della settimana, la lista della spesa e le ricette da provare.</p>' +
+    '<p><a href="' + escapeHtml_(link) + '" style="display:inline-block;padding:10px 18px;background:#2f6b4f;' +
+    'color:#fff;border-radius:8px;text-decoration:none">Apri il Menu di famiglia</a></p>' +
+    '<p>Accedi con questo indirizzo Google: <b>' + escapeHtml_(to) + '</b>.<br>' +
+    'Poi, dal menu di Chrome, scegli «Installa app» per averla nella schermata Home.</p>';
+  MailApp.sendEmail({ to: to, subject: subject, body: text, htmlBody: html, name: 'Menu di famiglia' });
+  return { ok: true, action: 'inviteMember', invited: to, members: membersView_() };
+}
+
+function removeMember_(target, email) {
+  requireAdmin_(email);
+  var who = String(target || '').trim().toLowerCase();
+  if (who === ownerEmail_()) throw apiError_(422, 'invalid_member', 'The owner cannot be removed');
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw apiError_(503, 'busy', 'Another save is in progress, retry');
+  try {
+    var emails = allowedEmails_();
+    if (emails.indexOf(who) === -1) throw apiError_(404, 'not_found', 'Not in the family');
+    saveAllowed_(emails.filter(function (m) { return m !== who; }));
+  } finally {
+    lock.releaseLock();
+  }
+  return { ok: true, action: 'removeMember', removed: who, members: membersView_() };
+}
+
+function escapeHtml_(text) {
+  return String(text).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
 }
 
 // --- Drive -----------------------------------------------------------------
@@ -467,7 +583,8 @@ function sha256_(text) {
 // Run from the editor after setting the Script Properties: checks the setup
 // and lists what the API would return, without needing a token.
 function checkSetup() {
-  console.log('Allowed accounts: ' + allowedEmails_().length);
+  console.log('Owner: ' + ownerEmail_() + ' · allowed accounts: ' + allowedEmails_().length);
+  console.log('Mail quota left today: ' + MailApp.getRemainingDailyQuota());
   console.log('Client id set: ' + Boolean(property_('CLIENT_ID')));
   console.log('pantry.json is optional: until the first change the pantry of family-data.json applies.');
   Object.keys(RESOURCES).forEach(function (key) {

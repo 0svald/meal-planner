@@ -40,18 +40,25 @@ missing from the allowlist gets no data.
    | Property | Value |
    | --- | --- |
    | `FOLDER_ID` | id of the `family-meal-planner` folder (the last part of its Drive URL) |
-   | `ALLOWED` | the family's Google accounts, comma-separated |
+   | `ALLOWED` | optional: the family's Google accounts, comma-separated. Managed from the app (⚙︎ → Famiglia); the owner is always allowed and never listed |
+   | `ADMINS` | optional: other accounts that may invite and remove members (the owner always can) |
    | `CLIENT_ID` | the OAuth client id from step 1 |
 
 4. In the editor, select `checkSetup` and press *Run*. Authorize the scopes:
    - `drive` — read the data files now, write `plans.json` from phase C on;
-   - `script.external_request` — verify ID tokens with `oauth2.googleapis.com`.
+   - `script.external_request` — verify ID tokens with `oauth2.googleapis.com`;
+   - `script.send_mail` — send the invitations (from the owner's Gmail, 100 a day);
+   - `userinfo.email` — know the owner's address (always allowed, admin).
+
+   After a version that adds scopes, run `checkSetup` once again **before**
+   deploying it, or the web app fails until the owner authorizes.
 
    The log lists the three files (`plans.json` is "missing" until the first save).
 5. *Deploy → New deployment → Web app*: execute as **Me**, who has access
    **Anyone**. Copy the `/exec` URL.
-6. Open the web page, tap ⚙︎ and paste the `/exec` URL and the client id. They are
-   stored on that phone only.
+6. Open the web page, tap ⚙︎ → Avanzate and paste the `/exec` URL (only the
+   owner, only once; the client id is asked to the script). Then ⚙︎ → Famiglia →
+   Invita: each person gets a mail with a link that sets everything up.
 
 Never commit the folder id, the emails, the client id or the `/exec` URL.
 
@@ -163,6 +170,22 @@ applied under the lock to the current list, old copy to
 
 `npm test` runs `Code.gs` under Node against an in-memory Drive
 (`apps-script/test/`), including saves, conflicts and archiving.
+
+`GET <exec>?resource=config` (no token) returns `{ok, client_id}`: the client id
+is public, the page needs it to show the Google sign-in. Nothing else is
+reachable without a token.
+
+Family management, owner and `ADMINS` only (`403 not_admin` otherwise):
+
+- `{"action": "listMembers"}` → `members: [{email, owner, admin}]`;
+- `{"action": "inviteMember", "email", "app_url", "endpoint"}` adds the address
+  to `ALLOWED` and mails it a link `app_url#invito=<base64url(endpoint)>`;
+  inviting again resends the mail; `app_url` must be https, `endpoint` the
+  `/exec` URL (`422 invalid_member`);
+- `{"action": "removeMember", "email"}` removes it at once (the owner cannot be
+  removed; `404` if not listed).
+
+`GET ?resource=all` also says `admin: true|false` for the caller.
 
 Verified tokens are cached for their lifetime (at most one hour), keyed by their
 SHA-256 hash; the allowlist is read on every call.

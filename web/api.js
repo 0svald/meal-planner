@@ -9,8 +9,49 @@ const ENDPOINT_RE = /^https:\/\/script\.google\.com\/.+\/exec$/
 
 export const DEMO = new URLSearchParams(location.search).has('demo')
 
+// { endpoint, clientId }: the endpoint comes from the invitation link (or
+// Settings → Avanzate, or config.js); the client id is asked to the script.
 export function config () {
   return { ...(window.MENU_CONFIG || {}), ...(readJSON(STORE.config) || {}) }
+}
+
+export function setEndpoint (endpoint) {
+  const before = config()
+  writeJSON(STORE.config, { endpoint })
+  // A token is tied to the client id of a script: moving to another one
+  // needs a new sign-in. The first setup keeps any token already there.
+  if (before.endpoint && before.endpoint !== endpoint) forgetToken()
+}
+
+// An invitation link carries the API address in the fragment:
+// .../web/#invito=<base64url of the /exec URL>. Browsers never send the
+// fragment to the server, so the address is not published anywhere.
+// Returns true when an invitation was read (and removes it from the address bar).
+export function readInvite () {
+  const m = /[#&]invito=([A-Za-z0-9_-]+)/.exec(location.hash)
+  if (!m) return false
+  history.replaceState(null, '', location.pathname + location.search)
+  let endpoint
+  try {
+    const b64 = m[1].replace(/-/g, '+').replace(/_/g, '/')
+    endpoint = atob(b64 + '='.repeat((4 - b64.length % 4) % 4))
+  } catch {
+    return false
+  }
+  if (!ENDPOINT_RE.test(endpoint)) return false
+  setEndpoint(endpoint)
+  return true
+}
+
+// The OAuth client id is public: the script hands it out (?resource=config).
+async function ensureClientId (cfg) {
+  if (cfg.clientId) return cfg
+  const res = await fetch(`${cfg.endpoint}?resource=config`)
+  const body = await res.json()
+  if (!body.ok || !body.client_id) throw new Error('no client id')
+  const next = { ...cfg, clientId: body.client_id }
+  writeJSON(STORE.config, { endpoint: next.endpoint, clientId: next.clientId })
+  return next
 }
 
 // --- Google sign-in ----------------------------------------------------------
@@ -101,10 +142,15 @@ async function token (cfg) {
 }
 
 async function call (request) {
-  const cfg = config()
-  if (!cfg.endpoint || !cfg.clientId) return fail('not_configured')
+  let cfg = config()
+  if (!cfg.endpoint) return fail('not_configured')
   if (!ENDPOINT_RE.test(cfg.endpoint)) return fail('bad_endpoint')
   if (!navigator.onLine) return fail('offline')
+  try {
+    cfg = await ensureClientId(cfg)
+  } catch {
+    return fail('unreachable')
+  }
   let t
   try {
     t = await token(cfg)
@@ -125,7 +171,7 @@ async function call (request) {
   }
 }
 
-// GET everything: {ok, email, resources: {catalog, family, plans, pantry}}.
+// GET everything: {ok, email, admin, resources: {catalog, family, plans, pantry, wishlist}}.
 export async function loadAll () {
   if (DEMO) return demo.loadAll()
   return call((endpoint, idToken) => fetch(`${endpoint}?resource=all&id_token=${encodeURIComponent(idToken)}`))
@@ -180,9 +226,44 @@ function post (body) {
   }))
 }
 
+// Family members (owner and ADMINS only): list, invite by email, remove.
+export async function listMembers () {
+  if (DEMO) return demo.members()
+  return post({ action: 'listMembers' })
+}
+
+export async function inviteMember (email) {
+  if (DEMO) return demo.invite(email)
+  const appUrl = location.origin + location.pathname
+  return post({ action: 'inviteMember', email, app_url: appUrl, endpoint: config().endpoint })
+}
+
+export async function removeMember (email) {
+  if (DEMO) return demo.remove(email)
+  return post({ action: 'removeMember', email })
+}
+
 // --- demo --------------------------------------------------------------------
 
 const demo = {
+  family_members: ['demo@example.com', 'nonna@example.com'],
+
+  members () {
+    return { ok: true, members: this.family_members.map((email, i) => ({ email, owner: i === 0, admin: i === 0 })) }
+  },
+
+  invite (email) {
+    const e = email.trim().toLowerCase()
+    if (!/^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(e)) return { ok: false, status: 422, error: 'invalid_member', message: 'email is not valid' }
+    if (!this.family_members.includes(e)) this.family_members.push(e)
+    return { ...this.members(), invited: e }
+  },
+
+  remove (email) {
+    this.family_members = this.family_members.filter(m => m !== email)
+    return this.members()
+  },
+
   plans: null,
   pantry: null,
   wishlist: null,
@@ -196,6 +277,7 @@ const demo = {
     return {
       ok: true,
       email: 'demo@example.com',
+      admin: true,
       resources: {
         catalog: { data: catalog, updated_at: null },
         family: { data: family, updated_at: null },
