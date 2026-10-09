@@ -619,7 +619,7 @@ body.tab-today main { touch-action: pan-y; }
 .members { list-style: none; margin: 0 0 8px; padding: 0; }
 .members li { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; }
 .members li + li { border-top: 1px solid var(--border); }
-.member-email { overflow-wrap: anywhere; }
+.member-email { flex: 1; min-width: 0; overflow-wrap: break-word; }
 .members .link-btn { margin: 0; }
 .invite-form { display: flex; gap: 8px; }
 .invite-form input {

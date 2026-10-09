@@ -219,6 +219,16 @@ test('inviteMember adds to the allowlist and mails a link with the endpoint in t
   assert.equal(s.mail.length, 2)
 })
 
+test('inviteMember with send_mail false only adds the address and returns the link', () => {
+  const s = setup()
+  const out = s.post({ id_token: 'MAMMA', action: 'inviteMember', email: 'zio@example.com', app_url: APP, endpoint: EXEC, send_mail: false })
+  assert.equal(out.ok, true)
+  assert.equal(out.mailed, false)
+  assert.ok(out.link.startsWith(APP + '#invito='))
+  assert.equal(s.mail.length, 0)
+  assert.equal(s.get({ resource: 'all', id_token: 'ZIO' }).ok, true)
+})
+
 test('inviteMember checks its input and who asks', () => {
   const s = setup()
   const invite = (who, extra) => s.post({ id_token: who, action: 'inviteMember', email: 'x@example.com', app_url: APP, endpoint: EXEC, ...extra })

@@ -189,10 +189,11 @@ Family management, owner and `ADMINS` only (`403 not_admin` otherwise):
   to `ALLOWED` and mails it a link `app_url#invito=<base64url(endpoint)>`;
   inviting again resends the mail; `app_url` must be https, `endpoint` the
   `/exec` URL (`422 invalid_member`);
-  the answer carries the same `link`. The mail is plain text plus a plain
-  link, with `replyTo` the inviter; if it lands in spam, the app shares the
-  link by hand (⚙︎ → Famiglia → «Condividi il link»): it only works for
-  accounts in `ALLOWED`;
+  the answer carries the same `link`. With `"send_mail": false` no mail is
+  sent: the app does this on phones, where «Invita» opens the share sheet
+  (Gmail, WhatsApp…) so the link comes from the inviter and avoids spam
+  filters; the script mails it (plain text, `replyTo` the inviter) only where
+  Web Share is missing. The link only works for accounts in `ALLOWED`;
 - `{"action": "removeMember", "email"}` removes it at once (the owner cannot be
   removed; `404` if not listed).
 

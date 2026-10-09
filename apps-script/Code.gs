@@ -367,8 +367,12 @@ function inviteMember_(body, email) {
     '<p>Apri questo link dal telefono e accedi con il tuo account Google ' + escapeHtml_(to) + ':<br>' +
     '<a href="' + escapeHtml_(link) + '">Menu di famiglia</a></p>' +
     '<p>Poi, dal menu di Chrome, puoi scegliere «Installa app» per averla nella schermata Home.</p>';
-  MailApp.sendEmail({ to: to, subject: subject, body: text, htmlBody: html, replyTo: email });
-  return { ok: true, action: 'inviteMember', invited: to, link: link, members: membersView_() };
+  // The app normally shares the link itself (Android share sheet: Gmail,
+  // WhatsApp…) and asks for no mail; the script mails it only as a fallback.
+  if (body.send_mail !== false) {
+    MailApp.sendEmail({ to: to, subject: subject, body: text, htmlBody: html, replyTo: email });
+  }
+  return { ok: true, action: 'inviteMember', invited: to, link: link, mailed: body.send_mail !== false, members: membersView_() };
 }
 
 function removeMember_(target, email) {
