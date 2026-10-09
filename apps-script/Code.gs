@@ -331,19 +331,21 @@ function inviteMember_(body, email) {
   }
 
   var link = appUrl + '#invito=' + Utilities.base64EncodeWebSafe(endpoint).replace(/=+$/, '');
-  var subject = 'Invito al Menu di famiglia';
-  var text = 'Ciao,\n\n' + email + ' ti ha invitato a usare il Menu di famiglia: il menu della settimana, ' +
+  // A plain, personal message: no styled button, no bulk-mail wording, and
+  // replies go to whoever invited. Mail from Apps Script to a new contact can
+  // still land in spam, so the app also offers the same link to share by hand.
+  var subject = email + ' ti invita al Menu di famiglia';
+  var text = 'Ciao,\n\n' + email + ' ti ha aggiunto al Menu di famiglia: il menu della settimana, ' +
     'la lista della spesa e le ricette da provare.\n\n' +
-    'Apri questo link dal telefono e accedi con questo indirizzo Google (' + to + '):\n' + link + '\n\n' +
-    'Poi, dal menu di Chrome, scegli «Installa app» per averla nella schermata Home.\n';
-  var html = '<p>Ciao,</p><p>' + escapeHtml_(email) + ' ti ha invitato a usare il <b>Menu di famiglia</b>: ' +
+    'Apri questo link dal telefono e accedi con il tuo account Google ' + to + ':\n' + link + '\n\n' +
+    'Poi, dal menu di Chrome, puoi scegliere «Installa app» per averla nella schermata Home.\n';
+  var html = '<p>Ciao,</p><p>' + escapeHtml_(email) + ' ti ha aggiunto al Menu di famiglia: ' +
     'il menu della settimana, la lista della spesa e le ricette da provare.</p>' +
-    '<p><a href="' + escapeHtml_(link) + '" style="display:inline-block;padding:10px 18px;background:#2f6b4f;' +
-    'color:#fff;border-radius:8px;text-decoration:none">Apri il Menu di famiglia</a></p>' +
-    '<p>Accedi con questo indirizzo Google: <b>' + escapeHtml_(to) + '</b>.<br>' +
-    'Poi, dal menu di Chrome, scegli «Installa app» per averla nella schermata Home.</p>';
-  MailApp.sendEmail({ to: to, subject: subject, body: text, htmlBody: html, name: 'Menu di famiglia' });
-  return { ok: true, action: 'inviteMember', invited: to, members: membersView_() };
+    '<p>Apri questo link dal telefono e accedi con il tuo account Google ' + escapeHtml_(to) + ':<br>' +
+    '<a href="' + escapeHtml_(link) + '">Menu di famiglia</a></p>' +
+    '<p>Poi, dal menu di Chrome, puoi scegliere «Installa app» per averla nella schermata Home.</p>';
+  MailApp.sendEmail({ to: to, subject: subject, body: text, htmlBody: html, replyTo: email });
+  return { ok: true, action: 'inviteMember', invited: to, link: link, members: membersView_() };
 }
 
 function removeMember_(target, email) {

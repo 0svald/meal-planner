@@ -210,7 +210,9 @@ test('inviteMember adds to the allowlist and mails a link with the endpoint in t
   const code = link.split('#invito=')[1]
   assert.equal(Buffer.from(code.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString(), EXEC)
   assert.ok(link.startsWith(APP))
-  assert.ok(m.htmlBody.includes('Apri il Menu di famiglia'))
+  assert.ok(m.htmlBody.includes('href="' + link + '"'))
+  assert.equal(m.replyTo, 'mamma@example.com', 'replies go to whoever invited')
+  assert.equal(out.link, link, 'the app can share the same link by hand')
   // inviting again only resends the mail
   s.post({ id_token: 'MAMMA', action: 'inviteMember', email: 'zio@example.com', app_url: APP, endpoint: EXEC })
   assert.equal(s.props.ALLOWED, 'papa@example.com,zio@example.com')
