@@ -109,7 +109,7 @@ function authenticate_(token) {
     if (ttl > 0) cache.put(key, email, ttl);
   }
   // The allowlist is checked on every call, so removing someone takes effect at once.
-  if (allowedEmails_().indexOf(email) === -1) {
+  if (indexOfAccount_(allowedEmails_(), email) === -1) {
     var err = apiError_(403, 'forbidden', 'Account not allowed');
     err.email = email;
     throw err;
@@ -135,13 +135,34 @@ function verifyIdToken_(token) {
   return claims;
 }
 
+// Gmail ignores dots and anything after "+" in the local part, and
+// googlemail.com is the same mailbox: "Mario.Rossi@gmail.com" invited and
+// "mariorossi@gmail.com" in the ID token are one account.
+function accountKey_(email) {
+  var e = String(email || '').trim().toLowerCase();
+  var at = e.lastIndexOf('@');
+  if (at < 0) return e;
+  var local = e.slice(0, at);
+  var domain = e.slice(at + 1);
+  if (domain === 'gmail.com' || domain === 'googlemail.com') {
+    return local.split('+')[0].replace(/\./g, '') + '@gmail.com';
+  }
+  return e;
+}
+
+function indexOfAccount_(emails, email) {
+  var key = accountKey_(email);
+  for (var i = 0; i < emails.length; i++) if (accountKey_(emails[i]) === key) return i;
+  return -1;
+}
+
 function allowedEmails_() {
   var list = PropertiesService.getScriptProperties().getProperty('ALLOWED') || '';
   var emails = list.split(',').map(function (s) {
     return s.trim().toLowerCase();
   }).filter(function (s) { return s; });
   var owner = ownerEmail_();
-  if (owner && emails.indexOf(owner) === -1) emails.unshift(owner);
+  if (owner && indexOfAccount_(emails, owner) === -1) emails.unshift(owner);
   return emails;
 }
 
@@ -282,7 +303,7 @@ function isAdmin_(email) {
     .map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return s; });
   var owner = ownerEmail_();
   if (owner) admins.push(owner);
-  return admins.indexOf(email) !== -1;
+  return indexOfAccount_(admins, email) !== -1;
 }
 
 function requireAdmin_(email) {
@@ -291,12 +312,14 @@ function requireAdmin_(email) {
 
 function membersView_() {
   var owner = ownerEmail_();
-  return allowedEmails_().map(function (m) { return { email: m, owner: m === owner, admin: isAdmin_(m) }; });
+  return allowedEmails_().map(function (m) {
+    return { email: m, owner: accountKey_(m) === accountKey_(owner), admin: isAdmin_(m) };
+  });
 }
 
 function saveAllowed_(emails) {
   var owner = ownerEmail_();
-  var list = emails.filter(function (m) { return m !== owner; });
+  var list = emails.filter(function (m) { return accountKey_(m) !== accountKey_(owner); });
   PropertiesService.getScriptProperties().setProperty('ALLOWED', list.join(','));
 }
 
@@ -324,7 +347,7 @@ function inviteMember_(body, email) {
   if (!lock.tryLock(20000)) throw apiError_(503, 'busy', 'Another save is in progress, retry');
   try {
     var emails = allowedEmails_();
-    if (emails.indexOf(to) === -1) emails.push(to);
+    if (indexOfAccount_(emails, to) === -1) emails.push(to);
     saveAllowed_(emails);
   } finally {
     lock.releaseLock();
@@ -344,20 +367,24 @@ function inviteMember_(body, email) {
     '<p>Apri questo link dal telefono e accedi con il tuo account Google ' + escapeHtml_(to) + ':<br>' +
     '<a href="' + escapeHtml_(link) + '">Menu di famiglia</a></p>' +
     '<p>Poi, dal menu di Chrome, puoi scegliere «Installa app» per averla nella schermata Home.</p>';
-  MailApp.sendEmail({ to: to, subject: subject, body: text, htmlBody: html, replyTo: email });
-  return { ok: true, action: 'inviteMember', invited: to, link: link, members: membersView_() };
+  // The app normally shares the link itself (Android share sheet: Gmail,
+  // WhatsApp…) and asks for no mail; the script mails it only as a fallback.
+  if (body.send_mail !== false) {
+    MailApp.sendEmail({ to: to, subject: subject, body: text, htmlBody: html, replyTo: email });
+  }
+  return { ok: true, action: 'inviteMember', invited: to, link: link, mailed: body.send_mail !== false, members: membersView_() };
 }
 
 function removeMember_(target, email) {
   requireAdmin_(email);
   var who = String(target || '').trim().toLowerCase();
-  if (who === ownerEmail_()) throw apiError_(422, 'invalid_member', 'The owner cannot be removed');
+  if (accountKey_(who) === accountKey_(ownerEmail_())) throw apiError_(422, 'invalid_member', 'The owner cannot be removed');
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) throw apiError_(503, 'busy', 'Another save is in progress, retry');
   try {
     var emails = allowedEmails_();
-    if (emails.indexOf(who) === -1) throw apiError_(404, 'not_found', 'Not in the family');
-    saveAllowed_(emails.filter(function (m) { return m !== who; }));
+    if (indexOfAccount_(emails, who) === -1) throw apiError_(404, 'not_found', 'Not in the family');
+    saveAllowed_(emails.filter(function (m) { return accountKey_(m) !== accountKey_(who); }));
   } finally {
     lock.releaseLock();
   }

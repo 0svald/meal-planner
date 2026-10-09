@@ -21,7 +21,7 @@ const COURSE_LABELS = {
   takeaway: 'Asporto'
 }
 // Shown in the settings, to tell which version a phone runs. Bump on release.
-const APP_VERSION = '2026-10-13'
+const APP_VERSION = '2026-10-15'
 const MINOR_COURSES = new Set(['bread', 'fruit', 'dessert'])
 const DAY_NAMES = {
   mon: 'Lunedì', tue: 'Martedì', wed: 'Mercoledì', thu: 'Giovedì', fri: 'Venerdì', sat: 'Sabato', sun: 'Domenica'
@@ -162,8 +162,9 @@ async function refresh ({ retried = false } = {}) {
     state.data = null
     $('#week').hidden = true
     showStatus(
-      `L'account ${body.email || ''} non è autorizzato a vedere il menu di famiglia. ` +
-      'Chiedi di essere aggiunto all\'elenco, oppure accedi con un altro account.',
+      `Il link è giusto, ma l'account ${body.email || ''} non è tra quelli invitati. ` +
+      'Chiedi a chi ti ha mandato il link di invitare proprio questo indirizzo (⚙︎ → Famiglia), ' +
+      'oppure accedi con l\'account Google invitato.',
       'error'
     )
     api.requestToken(api.config().clientId).then(() => refresh(), () => {})
@@ -1188,11 +1189,20 @@ function openSettings () {
 
 // --- family (owner only) -------------------------------------------------------
 
+// Let a long address wrap before the "@" rather than in the middle of a word.
+function emailParts (email) {
+  const at = email.indexOf('@')
+  return at > 0 ? [email.slice(0, at), document.createElement('wbr'), email.slice(at)] : [email]
+}
+
 function renderMembers (members) {
   $('#members').replaceChildren(...members.map(m => el('li', {},
-    el('span', { class: 'member-email' }, m.email),
+    el('span', { class: 'member-email' }, ...emailParts(m.email)),
     m.owner
       ? el('span', { class: 'badge' }, 'proprietario')
+      : el('button', { type: 'button', class: 'link-btn', onclick: () => shareInvite(m.email) }, 'Invia link'),
+    m.owner
+      ? null
       : el('button', {
         type: 'button',
         class: 'link-btn',
@@ -1218,20 +1228,38 @@ async function loadMembers () {
   else $('#members').replaceChildren(el('li', { class: 'muted small' }, messageFor(body)))
 }
 
+// "Invita" adds the address to the allowlist and hands the link to the
+// phone's share sheet, so the owner picks the channel (Gmail, WhatsApp, SMS…)
+// and the message comes from them, not from the script, which mail filters
+// distrust. Without Web Share (desktop) the script mails it instead.
 async function inviteMember (event) {
   event.preventDefault()
   const form = $('#invite-form')
-  const email = form.email.value.trim()
+  const email = form.email.value.trim().toLowerCase()
   if (!email) return
+  if (!/^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(email)) {
+    showStatus('Controlla l\'indirizzo: non sembra un\'email.', 'error')
+    return
+  }
+  const share = Boolean(navigator.share)
   const button = form.querySelector('button')
   button.disabled = true
-  const body = await api.inviteMember(email)
+  // Start the save first, then open the share sheet at once: it must open
+  // while the tap still counts as a user gesture.
+  const saving = api.inviteMember(email, { sendMail: !share })
+  const shared = share ? await shareInvite(email) : null
+  const body = await saving
   button.disabled = false
   if (body.ok) {
     form.email.value = ''
     renderMembers(body.members)
-    showStatus(`Invito mandato a ${body.invited}: ha già accesso. Se la mail non arriva, ` +
-      'può essere nello spam: in quel caso mandagli il link con «Condividi il link».', 'info')
+    if (!share) {
+      showStatus(`Invito mandato per email a ${body.invited}. Se non la trova, guardi nello spam.`, 'info')
+    } else if (shared) {
+      showStatus(`${body.invited} può entrare: apre il link e accede con questo indirizzo Google.`, 'info')
+    } else {
+      showStatus(`${body.invited} è nell'elenco, ma il link non è stato inviato: tocca «Invia link» accanto al suo indirizzo.`, 'info')
+    }
   } else if (body.error === 'invalid_member') {
     showStatus(`Controlla l'indirizzo: ${body.message}`, 'error')
   } else {
@@ -1239,25 +1267,28 @@ async function inviteMember (event) {
   }
 }
 
-// Share the invitation link by hand (WhatsApp, SMS…): mail sent by the
-// script to a new contact may land in spam.
-async function shareInvite () {
+// Open the share sheet with the invitation link for one address. Returns
+// true when shared, false when cancelled or not possible.
+async function shareInvite (email) {
   const url = api.inviteLink()
-  if (!url) return
-  const text = 'Ti ho aggiunto al Menu di famiglia. Apri il link dal telefono e accedi con il tuo account Google:'
-  try {
-    if (navigator.share) {
-      await navigator.share({ title: 'Menu di famiglia', text, url })
-      return
+  if (!url) return false
+  const text = `Ti ho invitato al Menu di famiglia: il menu della settimana e la lista della spesa. ` +
+    `Apri il link dal telefono e accedi con il tuo account Google ${email}:`
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'Invito al Menu di famiglia', text, url })
+      return true
+    } catch (err) {
+      if (err && err.name === 'AbortError') return false
     }
-  } catch (err) {
-    if (err && err.name === 'AbortError') return
   }
   try {
     await navigator.clipboard.writeText(`${text} ${url}`)
     showStatus('Link copiato: incollalo in un messaggio. Funziona solo per gli account invitati.', 'info')
+    return true
   } catch {
     prompt('Copia il link d\'invito:', url)
+    return true
   }
 }
 
@@ -1380,7 +1411,6 @@ function main () {
   $('#update-btn').addEventListener('click', updateApp)
   $('#settings-close').addEventListener('click', () => $('#settings').close())
   $('#invite-form').addEventListener('submit', inviteMember)
-  $('#share-invite').addEventListener('click', shareInvite)
   $('#advanced-form').addEventListener('submit', saveAdvanced)
   $('#signout-btn').addEventListener('click', async () => {
     $('#settings').close()

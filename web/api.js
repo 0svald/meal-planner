@@ -253,10 +253,10 @@ export function inviteLink () {
   return `${location.origin}${location.pathname}#invito=${code}`
 }
 
-export async function inviteMember (email) {
+export async function inviteMember (email, { sendMail = true } = {}) {
   if (DEMO) return demo.invite(email)
   const appUrl = location.origin + location.pathname
-  return post({ action: 'inviteMember', email, app_url: appUrl, endpoint: config().endpoint })
+  return post({ action: 'inviteMember', email, app_url: appUrl, endpoint: config().endpoint, send_mail: sendMail })
 }
 
 export async function removeMember (email) {

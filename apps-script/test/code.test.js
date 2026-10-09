@@ -219,6 +219,16 @@ test('inviteMember adds to the allowlist and mails a link with the endpoint in t
   assert.equal(s.mail.length, 2)
 })
 
+test('inviteMember with send_mail false only adds the address and returns the link', () => {
+  const s = setup()
+  const out = s.post({ id_token: 'MAMMA', action: 'inviteMember', email: 'zio@example.com', app_url: APP, endpoint: EXEC, send_mail: false })
+  assert.equal(out.ok, true)
+  assert.equal(out.mailed, false)
+  assert.ok(out.link.startsWith(APP + '#invito='))
+  assert.equal(s.mail.length, 0)
+  assert.equal(s.get({ resource: 'all', id_token: 'ZIO' }).ok, true)
+})
+
 test('inviteMember checks its input and who asks', () => {
   const s = setup()
   const invite = (who, extra) => s.post({ id_token: who, action: 'inviteMember', email: 'x@example.com', app_url: APP, endpoint: EXEC, ...extra })
@@ -283,4 +293,19 @@ test('saveDishEdit refuses unknown dishes, fields and values', () => {
   assert.equal(save('pasta', { prep_minutes: -5 }).error, 'invalid_dish')
   assert.equal(save('pasta', 'not an object').error, 'invalid_dish')
   assert.equal(s.post({ id_token: 'ZIO', action: 'saveDishEdit', dish_id: 'pasta', fields: { name: 'x' } }).status, 403)
+})
+
+test('Gmail addresses match ignoring dots, "+" suffixes, case and googlemail.com', () => {
+  const s = loadScript({
+    files: { 'catalog.json': catalog, 'family-data.json': family },
+    tokens: { ...tokens, MARIO: token('mariorossi@gmail.com'), OTHER: token('mario.rosso@gmail.com') },
+    allowed: 'Mario.Rossi+menu@googlemail.com'
+  })
+  assert.equal(s.get({ resource: 'all', id_token: 'MARIO' }).ok, true)
+  assert.equal(s.get({ resource: 'all', id_token: 'OTHER' }).status, 403)
+  s.post({ id_token: 'MAMMA', action: 'inviteMember', email: 'mario.rossi@gmail.com', app_url: APP, endpoint: EXEC })
+  assert.equal(s.props.ALLOWED, 'Mario.Rossi+menu@googlemail.com'.toLowerCase(), 'same account is not added twice')
+  const out = s.post({ id_token: 'MAMMA', action: 'removeMember', email: 'mariorossi@gmail.com' })
+  assert.equal(out.ok, true)
+  assert.equal(s.get({ resource: 'all', id_token: 'MARIO' }).status, 403)
 })
