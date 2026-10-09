@@ -632,3 +632,85 @@ body.tab-today main { touch-action: pan-y; }
 #advanced summary { cursor: pointer; min-height: 32px; font-weight: 600; }
 #advanced form { margin-top: 8px; }
 #advanced form button { min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); }
+
+/* --- catalog and dish editor --- */
+
+.catalog { margin-top: 12px; }
+.catalog input[type="search"] {
+  width: 100%;
+  min-height: 44px;
+  margin: 8px 0;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+.catalog-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.catalog-filters .filter {
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 0.85rem;
+}
+.catalog-filters .filter.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.catalog-list { list-style: none; margin: 0; padding: 0; }
+.catalog-list li + li { border-top: 1px solid var(--border); }
+.catalog-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+.catalog-name { font-weight: 600; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.badge.warn { background: var(--warn-soft); color: var(--warn); }
+
+.dish-form { display: grid; gap: 10px; }
+.dish-form h2 { margin: 0; }
+.dish-form label { display: grid; gap: 4px; font-size: 0.9rem; }
+.dish-form input[type="text"],
+.dish-form input[type="number"],
+.dish-form select,
+.dish-form textarea {
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+.dish-form .two-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dish-form fieldset { margin: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; }
+.dish-form legend { padding: 0 4px; font-size: 0.85rem; font-weight: 600; }
+.check-group { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.dish-form label.check { display: flex; align-items: center; gap: 6px; min-height: 36px; font-size: 0.95rem; }
+.check input { width: 20px; height: 20px; accent-color: var(--accent); }
+.ing-list { list-style: none; margin: 0 0 4px; padding: 0; display: grid; gap: 6px; }
+.ing-row { display: grid; grid-template-columns: 1fr 7.5em; grid-template-areas: "name aisle" "qty unit"; gap: 4px 6px; position: relative; padding-right: 40px; }
+.ing-row .ing-name { grid-area: name; min-width: 0; }
+.ing-row .ing-aisle { grid-area: aisle; min-width: 0; }
+.ing-row .ing-qty { grid-area: qty; min-width: 0; }
+.ing-row .ing-unit { grid-area: unit; min-width: 0; }
+.ing-row .remove {
+  position: absolute;
+  right: 0;
+  top: 0;
+  min-width: 36px;
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.3rem;
+}
+.dish-form .actions { position: sticky; bottom: calc(-16px - env(safe-area-inset-bottom)); margin: 4px -16px 0; padding: 10px 16px; background: var(--card); border-top: 1px solid var(--border); }
+.dish-form .actions button { min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); }
+.dish-form .actions .primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }

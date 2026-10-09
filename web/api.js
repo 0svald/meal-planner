@@ -218,6 +218,18 @@ export async function removeWish (id) {
   return post({ action: 'removeWish', id })
 }
 
+// Corrections to catalog dishes, kept in dish-edits.json (the catalog itself
+// belongs to the skill).
+export async function saveDishEdit (dishId, fields) {
+  if (DEMO) return demo.saveDishEdit(dishId, fields)
+  return post({ action: 'saveDishEdit', dish_id: dishId, fields })
+}
+
+export async function resetDishEdit (dishId) {
+  if (DEMO) return demo.resetDishEdit(dishId)
+  return post({ action: 'resetDishEdit', dish_id: dishId })
+}
+
 function post (body) {
   return call((endpoint, idToken) => fetch(endpoint, {
     method: 'POST',
@@ -283,7 +295,8 @@ const demo = {
         family: { data: family, updated_at: null },
         plans: { data: this.plans, updated_at: this.plans.updated_at },
         pantry: { data: this.pantry, updated_at: this.pantry ? this.pantry.updated_at : null },
-        wishlist: { data: this.wishlist, updated_at: this.wishlist ? this.wishlist.updated_at : null }
+        wishlist: { data: this.wishlist, updated_at: this.wishlist ? this.wishlist.updated_at : null },
+        edits: { data: this.edits, updated_at: this.edits ? this.edits.updated_at : null }
       }
     }
   },
@@ -303,6 +316,26 @@ const demo = {
 
   async removeWish (id) {
     return this.saveWishes((this.wishlist ? this.wishlist.wishes : []).filter(w => w.id !== id))
+  },
+
+  edits: null,
+
+  saveEdits (edits) {
+    const now = new Date().toISOString()
+    this.edits = { schema_version: '1.0', updated_at: now, updated_by: 'demo@example.com', edits }
+    return { ok: true, data: this.edits, updated_at: now }
+  },
+
+  async saveDishEdit (dishId, fields) {
+    const edits = { ...(this.edits ? this.edits.edits : {}) }
+    edits[dishId] = { fields, edited_by: 'demo@example.com', edited_at: new Date().toISOString() }
+    return this.saveEdits(edits)
+  },
+
+  async resetDishEdit (dishId) {
+    const edits = { ...(this.edits ? this.edits.edits : {}) }
+    delete edits[dishId]
+    return this.saveEdits(edits)
   },
 
   async updatePantry (add, remove) {

@@ -8,6 +8,7 @@ The app now owns three files in `family-meal-planner/` that the skill must
 | `plans.json` | the weekly plans (`plans`) | variety history; shopping lists in chat |
 | `pantry.json` | the pantry staples (`pantry`) | replaces `family-data.json`'s `pantry` once it exists |
 | `wishlist.json` | recipes the family wants added (`wishes`) | the "load the wishlist" task below |
+| `dish-edits.json` | the family's corrections to catalog dishes (`edits`) | apply them on top of `catalog.json` whenever dishes are read |
 
 The text below is meant to be added to the skill's `SKILL.md` (for example with
 the skill-creator), in the skill's own style. It is not loaded by the app.
@@ -16,8 +17,8 @@ the skill-creator), in the skill's own style. It is not loaded by the app.
 
 ## Files written by the app (read only)
 
-The family's web app writes `plans.json`, `pantry.json` and `wishlist.json` in the
-same folder. Read them when a task needs them; never create, change or archive
+The family's web app writes `plans.json`, `pantry.json`, `wishlist.json` and
+`dish-edits.json` in the same folder. Read them when a task needs them; never create, change or archive
 them.
 
 - **Pantry**: when `pantry.json` exists, its `pantry` list replaces the `pantry`
@@ -25,6 +26,14 @@ them.
   shopping list.
 - **Plans**: `plans.json` holds `plans` (same shape as the schema's `plans`);
   confirmed plans feed the variety history.
+
+- **Dish edits**: `dish-edits.json` holds `edits[dishId].fields`; each field
+  replaces the catalog's (lists and `nutrition` as a whole), `null` removes it.
+  Always read dishes with the edits applied (or run `engine/data.js` `mergeData`).
+  When the family asks you to change a dish that has an app edit, say so: the
+  app edit keeps winning until someone taps "Ripristina originale". You may fold
+  an edit into `catalog.json` when saving it (same values), but never remove the
+  edit yourself.
 
 ## Loading the recipe wishlist
 

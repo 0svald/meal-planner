@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   addDays, weekdayOf, mondayOf, dayNumber, mergeData, applyDefaults,
-  activeMenu, cycleWeek, canteenWeek, isoWeekId
+  activeMenu, cycleWeek, canteenWeek, isoWeekId, applyDishEdits
 } from '../data.js'
 
 const fixture = name =>
@@ -129,4 +129,29 @@ test('mergeData takes the pantry from pantry.json once it exists', () => {
   assert.deepEqual(mergeData({ family }).pantry, family.pantry)
   assert.deepEqual(mergeData({ family, pantry: { pantry: ['riso', 'sale'] } }).pantry, ['riso', 'sale'])
   assert.deepEqual(mergeData({ family, pantry: { pantry: [] } }).pantry, [])
+})
+
+test('dish edits replace catalog fields, null removes one, unknown dishes are ignored', () => {
+  const catalog = fixture('catalog')
+  const edits = {
+    edits: {
+      'pasta-lenticchie': {
+        fields: { name: 'Pasta e lenticchie della nonna', prep_minutes: null, verified: true, ingredients: [{ name: 'lenticchie', aisle: 'pantry' }] },
+        edited_by: 'mamma@example.com',
+        edited_at: '2026-10-10T10:00:00Z'
+      },
+      'non-esiste': { fields: { name: 'x' } }
+    }
+  }
+  const data = mergeData({ catalog, family: fixture('family-data'), edits })
+  const d = data.dishes.find(x => x.id === 'pasta-lenticchie')
+  assert.equal(d.name, 'Pasta e lenticchie della nonna')
+  assert.equal(d.prep_minutes, undefined)
+  assert.equal(d.verified, true)
+  assert.deepEqual(d.ingredients, [{ name: 'lenticchie', aisle: 'pantry' }])
+  assert.deepEqual(d.edited, { by: 'mamma@example.com', at: '2026-10-10T10:00:00Z' })
+  assert.deepEqual(d.nutrition.proteins, ['legumes'], 'fields not edited stay')
+  assert.equal(data.dishes.length, catalog.dishes.length)
+  assert.equal(catalog.dishes.find(x => x.id === 'pasta-lenticchie').name, 'Pasta e lenticchie', 'catalog not modified')
+  assert.equal(applyDishEdits(catalog.dishes, null), catalog.dishes)
 })

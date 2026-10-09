@@ -1,7 +1,7 @@
 // Data API for menu-famiglia-app.
 // Reads the JSON files of the Drive folder family-meal-planner/ and writes the
-// app's own files: plans.json, pantry.json, wishlist.json and the text files
-// in shopping-lists/. No planning logic lives here: identify the caller, read,
+// app's own files: plans.json, pantry.json, wishlist.json, dish-edits.json and
+// the text files in shopping-lists/. No planning logic lives here: identify the caller, read,
 // validate the shape, write.
 //
 // Script Properties (Project settings > Script properties):
@@ -19,7 +19,8 @@ var RESOURCES = {
   family: 'family-data.json',
   plans: 'plans.json',
   pantry: 'pantry.json',
-  wishlist: 'wishlist.json'
+  wishlist: 'wishlist.json',
+  edits: 'dish-edits.json'
 };
 
 var TOKEN_ISSUERS = ['accounts.google.com', 'https://accounts.google.com'];
@@ -56,6 +57,8 @@ function doGet(e) {
 //   {id_token, action: 'updatePantry', add: [...], remove: [...]}
 //   {id_token, action: 'addWish', name, url?, note?}
 //   {id_token, action: 'removeWish', id}
+//   {id_token, action: 'saveDishEdit', dish_id, fields}
+//   {id_token, action: 'resetDishEdit', dish_id}
 //   {id_token, action: 'listMembers'}                          (admin only)
 //   {id_token, action: 'inviteMember', email, app_url, endpoint} (admin only)
 //   {id_token, action: 'removeMember', email}                  (admin only)
@@ -76,6 +79,8 @@ function doPost(e) {
     if (body.action === 'updatePantry') return json_(updatePantry_(body.add, body.remove, email));
     if (body.action === 'addWish') return json_(addWish_(body, email));
     if (body.action === 'removeWish') return json_(removeWish_(body.id, email));
+    if (body.action === 'saveDishEdit') return json_(saveDishEdit_(body.dish_id, body.fields, email));
+    if (body.action === 'resetDishEdit') return json_(resetDishEdit_(body.dish_id, email));
     if (body.action === 'listMembers') return json_(listMembers_(email));
     if (body.action === 'inviteMember') return json_(inviteMember_(body, email));
     if (body.action === 'removeMember') return json_(removeMember_(body.email, email));
@@ -138,6 +143,128 @@ function allowedEmails_() {
   var owner = ownerEmail_();
   if (owner && emails.indexOf(owner) === -1) emails.unshift(owner);
   return emails;
+}
+
+// --- dish edits ----------------------------------------------------------------
+// The family corrects catalog dishes from the app. catalog.json belongs to the
+// skill, so the changes live in dish-edits.json and sit on top of it
+// (engine/data.js applyDishEdits). Each save replaces the edit of one dish
+// under the lock; resetting removes it, back to the catalog version.
+// Only the shape is checked here, with the closed sets of the skill's model.py.
+
+var COURSES = ['first', 'second', 'side', 'single', 'bread', 'fruit', 'dessert', 'takeaway'];
+var ALLERGENS = ['gluten', 'crustaceans', 'eggs', 'fish', 'peanuts', 'soy', 'milk', 'nuts', 'celery',
+  'mustard', 'sesame', 'sulphites', 'lupin', 'molluscs'];
+var CARBS = ['cereals', 'tubers', 'legumes', 'simple_sugars'];
+var CEREAL_TYPES = ['wheat', 'rice', 'barley', 'spelt', 'corn', 'oats', 'other'];
+var PROTEINS = ['red_meat', 'white_meat', 'processed_meat', 'fish', 'shellfish', 'eggs', 'cheese', 'legumes'];
+var FATS = ['evo_oil', 'butter_cream', 'aged_cheese', 'nuts_seeds', 'oily_fish', 'fried'];
+var VEG_FORMS = ['raw', 'cooked', 'both'];
+var CONFIDENCE = ['high', 'medium', 'low'];
+var AISLES = ['produce', 'meat', 'fish', 'dairy', 'pantry', 'frozen', 'bakery', 'other'];
+
+function enumList_(value, allowed, field, problems) {
+  if (!Array.isArray(value)) return problems.push(field + ' must be a list');
+  value.forEach(function (v) { if (allowed.indexOf(v) === -1) problems.push(field + ': unknown value ' + v); });
+}
+
+function validateDishFields_(fields) {
+  var problems = [];
+  if (!fields || typeof fields !== 'object' || Array.isArray(fields)) throw apiError_(422, 'invalid_dish', 'fields must be an object');
+  Object.keys(fields).forEach(function (k) {
+    var v = fields[k];
+    if (k === 'name') {
+      if (typeof v !== 'string' || !v.trim() || v.length > 120) problems.push('name must be 1-120 characters');
+    } else if (k === 'course') {
+      if (COURSES.indexOf(v) === -1) problems.push('course: unknown value ' + v);
+    } else if (k === 'allergens') {
+      enumList_(v, ALLERGENS, 'allergens', problems);
+    } else if (k === 'ingredients') {
+      if (!Array.isArray(v) || v.length > 60) return problems.push('ingredients must be a list of at most 60');
+      v.forEach(function (ing, i) {
+        var p = 'ingredients[' + i + ']';
+        if (!ing || typeof ing.name !== 'string' || !ing.name.trim() || ing.name.length > 80) problems.push(p + '.name must be 1-80 characters');
+        if (!ing || AISLES.indexOf(ing.aisle) === -1) problems.push(p + '.aisle: unknown value');
+        if (ing && ing.qty !== undefined && !(typeof ing.qty === 'number' && ing.qty > 0)) problems.push(p + '.qty must be a positive number');
+        if (ing && ing.qty !== undefined && typeof ing.unit !== 'string') problems.push(p + '.unit is required with qty');
+        if (ing && ing.unit !== undefined && (typeof ing.unit !== 'string' || ing.unit.length > 20)) problems.push(p + '.unit must be text');
+        var extra = Object.keys(ing || {}).filter(function (x) { return ['name', 'aisle', 'qty', 'unit'].indexOf(x) === -1; });
+        if (extra.length) problems.push(p + ': unknown keys ' + extra.join(', '));
+      });
+    } else if (k === 'nutrition') {
+      if (v === null) return;
+      if (typeof v !== 'object' || Array.isArray(v)) return problems.push('nutrition must be an object');
+      enumList_(v.carbs || [], CARBS, 'nutrition.carbs', problems);
+      enumList_(v.proteins || [], PROTEINS, 'nutrition.proteins', problems);
+      enumList_(v.fats || [], FATS, 'nutrition.fats', problems);
+      (Array.isArray(v.cereals) ? v.cereals : []).forEach(function (c) {
+        if (!c || CEREAL_TYPES.indexOf(c.type) === -1 || typeof c.whole !== 'boolean') problems.push('nutrition.cereals: bad entry');
+      });
+      if (v.cereals && v.cereals.length && (v.carbs || []).indexOf('cereals') === -1) problems.push('nutrition.cereals needs cereals in carbs');
+      if (v.vegetables !== undefined) {
+        var veg = v.vegetables;
+        if (!veg || typeof veg.present !== 'boolean') problems.push('nutrition.vegetables.present must be true or false');
+        else if (veg.present && VEG_FORMS.indexOf(veg.form) === -1) problems.push('nutrition.vegetables.form: unknown value');
+      }
+      if (CONFIDENCE.indexOf(v.confidence) === -1) problems.push('nutrition.confidence: unknown value');
+    } else if (k === 'prep_minutes') {
+      if (v !== null && !(typeof v === 'number' && v % 1 === 0 && v >= 0 && v <= 600)) problems.push('prep_minutes must be 0-600 or null');
+    } else if (k === 'notes') {
+      if (v !== null && (typeof v !== 'string' || v.length > 500)) problems.push('notes must be text up to 500 characters');
+    } else if (k === 'verified' || k === 'cookable_at_home') {
+      if (typeof v !== 'boolean') problems.push(k + ' must be true or false');
+    } else if (k === 'tags') {
+      if (!Array.isArray(v) || v.length > 20 || v.some(function (t) { return typeof t !== 'string' || !t || t.length > 30; })) {
+        problems.push('tags must be a list of short words');
+      }
+    } else {
+      problems.push('field ' + k + ' cannot be edited');
+    }
+  });
+  if (problems.length) throw apiError_(422, 'invalid_dish', problems.join('; '));
+}
+
+function requireDish_(dishId) {
+  var dishes = readResource_('catalog').data.dishes || [];
+  if (typeof dishId !== 'string' || !dishes.some(function (d) { return d.id === dishId; })) {
+    throw apiError_(404, 'not_found', 'No dish with this id in the catalog');
+  }
+}
+
+function changeEdits_(email, change) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw apiError_(503, 'busy', 'Another save is in progress, retry');
+  try {
+    var current = readResource_('edits').data;
+    var edits = change(current && current.edits ? JSON.parse(JSON.stringify(current.edits)) : {});
+    var now = new Date().toISOString();
+    var data = { schema_version: '1.0', updated_at: now, updated_by: email, edits: edits };
+    writeAppFile_('edits', data);
+    return { ok: true, email: email, data: data, updated_at: now };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function saveDishEdit_(dishId, fields, email) {
+  requireDish_(dishId);
+  validateDishFields_(fields);
+  var out = changeEdits_(email, function (edits) {
+    edits[dishId] = { fields: fields, edited_by: email, edited_at: new Date().toISOString() };
+    return edits;
+  });
+  out.action = 'saveDishEdit';
+  return out;
+}
+
+function resetDishEdit_(dishId, email) {
+  var out = changeEdits_(email, function (edits) {
+    if (!edits[dishId]) throw apiError_(404, 'not_found', 'This dish has no edit');
+    delete edits[dishId];
+    return edits;
+  });
+  out.action = 'resetDishEdit';
+  return out;
 }
 
 // --- family members ----------------------------------------------------------
@@ -249,7 +376,7 @@ function readResource_(name) {
     // plans.json and pantry.json are created by the app at the first save;
     // until pantry.json exists the pantry of family-data.json applies.
     if (name === 'plans') return { data: { schema_version: '1.0', plans: [] }, updated_at: null };
-    if (name === 'pantry' || name === 'wishlist') return { data: null, updated_at: null };
+    if (name === 'pantry' || name === 'wishlist' || name === 'edits') return { data: null, updated_at: null };
     throw apiError_(404, 'not_found', RESOURCES[name] + ' not found in the folder');
   }
   var data;
@@ -275,11 +402,12 @@ function findFile_(fileName) {
   return best;
 }
 
-// Only the app's files are ever written (plans.json, pantry.json, wishlist.json):
+// Only the app's files are ever written (plans.json, pantry.json, wishlist.json,
+// dish-edits.json):
 // catalog.json and family-data.json belong to the skill. A save creates a new
 // copy, then moves the old one to archive/ as <name>-YYYYMMDD-HHMM.json (same
 // convention as the skill).
-var APP_FILES = { plans: true, pantry: true, wishlist: true };
+var APP_FILES = { plans: true, pantry: true, wishlist: true, edits: true };
 
 function writeAppFile_(resource, obj) {
   if (!APP_FILES[resource]) throw new Error('The app never writes ' + resource);

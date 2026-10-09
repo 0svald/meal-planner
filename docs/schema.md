@@ -12,6 +12,7 @@ The data is split across three Drive files:
 | `plans.json` | `plans`, plus `updated_at`, `updated_by` | app only |
 | `pantry.json` | `pantry`, plus `updated_at`, `updated_by` | app only |
 | `wishlist.json` | `wishes`, plus `updated_at`, `updated_by` | app only |
+| `dish-edits.json` | `edits`, plus `updated_at`, `updated_by` | app only |
 
 `engine/data.js` (`mergeData`) merges them into the single object described here.
 While `plans.json` does not exist yet, `plans` is read from `family-data.json`, where
@@ -157,3 +158,19 @@ Lists may be empty (a salad has no proteins). Meanings in `taxonomy.md`.
 `url` and `note` are optional. A wish is added to the catalog when a dish has
 `wish:<id>` in `source.ref` (several ids may be listed); the skill never writes
 this file. See `docs/skill-integration.md`.
+
+## dish edits (dish-edits.json, app only)
+
+```json
+{ "schema_version": "1.0", "updated_at": "…", "updated_by": "…",
+  "edits": { "pasta-lenticchie": {
+      "fields": { "name": "Pasta e lenticchie della nonna", "prep_minutes": 35, "verified": true },
+      "edited_by": "…", "edited_at": "…" } } }
+```
+
+Corrections made in the app (Ricette → Catalogo). Each field in `fields`
+replaces the catalog's (lists and `nutrition` as a whole); `null` removes it.
+Editable: `name`, `course`, `allergens`, `ingredients`, `nutrition`,
+`prep_minutes`, `notes`, `verified`, `cookable_at_home`, `tags`. Read the catalog
+with the edits applied (`engine/data.js` `mergeData`); edits of dishes no longer
+in the catalog are ignored.

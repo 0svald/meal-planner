@@ -171,6 +171,13 @@ applied under the lock to the current list, old copy to
 `npm test` runs `Code.gs` under Node against an in-memory Drive
 (`apps-script/test/`), including saves, conflicts and archiving.
 
+`POST <exec>` with `{"id_token": "…", "action": "saveDishEdit", "dish_id": "…",
+"fields": {…}}` stores the family's correction of a catalog dish in
+`dish-edits.json` (replacing that dish's previous edit); `{"action":
+"resetDishEdit", "dish_id"}` removes it. The dish must exist in `catalog.json`,
+which is never written. Fields and values are checked against the skill's
+closed sets (`422 invalid_dish`): see `docs/schema.md`.
+
 `GET <exec>?resource=config` (no token) returns `{ok, client_id}`: the client id
 is public, the page needs it to show the Google sign-in. Nothing else is
 reachable without a token.

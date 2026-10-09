@@ -241,3 +241,44 @@ test('ADMINS can manage the family too', () => {
   const s = loadScript({ files: { 'catalog.json': catalog, 'family-data.json': family }, tokens, admins: 'papa@example.com' })
   assert.equal(s.post({ id_token: 'PAPA', action: 'listMembers' }).ok, true)
 })
+
+test('saveDishEdit / resetDishEdit keep dish-edits.json; catalog.json is never written', () => {
+  const s = setup()
+  assert.equal(s.get({ resource: 'edits', id_token: 'MAMMA' }).data, null)
+  const fields = {
+    name: 'Pasta corta',
+    course: 'first',
+    prep_minutes: 20,
+    allergens: ['gluten'],
+    ingredients: [{ name: 'pasta', aisle: 'pantry', qty: 320, unit: 'g' }, { name: 'basilico', aisle: 'produce' }],
+    nutrition: { carbs: ['cereals'], cereals: [{ type: 'wheat', whole: false }], proteins: [], fats: ['evo_oil'], vegetables: { present: false }, confidence: 'high' },
+    verified: true
+  }
+  const a = s.post({ id_token: 'PAPA', action: 'saveDishEdit', dish_id: 'pasta', fields })
+  assert.equal(a.ok, true, JSON.stringify(a))
+  assert.deepEqual(a.data.edits.pasta.fields, fields)
+  assert.equal(a.data.edits.pasta.edited_by, 'papa@example.com')
+  const b = s.post({ id_token: 'MAMMA', action: 'saveDishEdit', dish_id: 'pollo', fields: { prep_minutes: null } })
+  assert.deepEqual(Object.keys(b.data.edits).sort(), ['pasta', 'pollo'])
+  const c = s.post({ id_token: 'MAMMA', action: 'resetDishEdit', dish_id: 'pasta' })
+  assert.deepEqual(Object.keys(c.data.edits), ['pollo'])
+  assert.equal(s.post({ id_token: 'MAMMA', action: 'resetDishEdit', dish_id: 'pasta' }).status, 404)
+  assert.deepEqual(s.fileNames(), ['catalog.json', 'dish-edits.json', 'family-data.json'])
+  const cat = s.drive.files.find(f => f.name === 'catalog.json')
+  assert.deepEqual(JSON.parse(cat.content), catalog, 'catalog.json untouched')
+})
+
+test('saveDishEdit refuses unknown dishes, fields and values', () => {
+  const s = setup()
+  const save = (dish, fields) => s.post({ id_token: 'MAMMA', action: 'saveDishEdit', dish_id: dish, fields })
+  assert.equal(save('ghost', { name: 'x' }).status, 404)
+  assert.equal(save('pasta', { id: 'other' }).error, 'invalid_dish')
+  assert.equal(save('pasta', { course: 'brunch' }).error, 'invalid_dish')
+  assert.equal(save('pasta', { allergens: ['nickel'] }).error, 'invalid_dish')
+  assert.equal(save('pasta', { ingredients: [{ name: 'x', aisle: 'garage' }] }).error, 'invalid_dish')
+  assert.equal(save('pasta', { ingredients: [{ name: 'x', aisle: 'pantry', qty: 2 }] }).error, 'invalid_dish', 'qty needs a unit')
+  assert.equal(save('pasta', { nutrition: { proteins: ['dragon'], confidence: 'high' } }).error, 'invalid_dish')
+  assert.equal(save('pasta', { prep_minutes: -5 }).error, 'invalid_dish')
+  assert.equal(save('pasta', 'not an object').error, 'invalid_dish')
+  assert.equal(s.post({ id_token: 'ZIO', action: 'saveDishEdit', dish_id: 'pasta', fields: { name: 'x' } }).status, 403)
+})
