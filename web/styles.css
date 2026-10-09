@@ -597,8 +597,9 @@ main { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
 body.tab-today main { touch-action: pan-y; }
 /* The slide-in starts 40px off to the side: clip it, or the page grows wider
    than the screen for a moment and mobile browsers zoom out, pushing the
-   bottom bar off screen. */
-#today-view { overflow-x: clip; }
+   bottom bar off screen. `hidden` first, for browsers without `clip`
+   (the view has no fixed height, so nothing is cut vertically). */
+#today-view { overflow: hidden; overflow: clip; }
 #today-view.from-right .meal-cards,
 #today-view.from-right .day-title { animation: slide-from-right 0.2s ease-out; }
 #today-view.from-left .meal-cards,
