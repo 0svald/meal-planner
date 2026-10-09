@@ -230,6 +230,18 @@ export async function resetDishEdit (dishId) {
   return post({ action: 'resetDishEdit', dish_id: dishId })
 }
 
+// Recipes made in the app, also in dish-edits.json: a new one (a variant of
+// `basedOn`, or from scratch) when dishId is null, otherwise a change to it.
+export async function saveDish ({ dishId = null, basedOn = null, fields }) {
+  if (DEMO) return demo.saveDish({ dishId, basedOn, fields })
+  return post({ action: 'saveDish', dish_id: dishId || undefined, based_on: basedOn || undefined, fields })
+}
+
+export async function removeDish (dishId) {
+  if (DEMO) return demo.removeDish(dishId)
+  return post({ action: 'removeDish', dish_id: dishId })
+}
+
 function post (body) {
   return call((endpoint, idToken) => fetch(endpoint, {
     method: 'POST',
@@ -293,6 +305,7 @@ const demo = {
   async loadAll () {
     const get = name => fetch(`../fixtures/${name}.json`).then(r => r.json())
     const [catalog, family, plans] = await Promise.all([get('catalog'), get('family-data'), get('plans')])
+    this.catalog = catalog
     if (!this.plans) this.plans = { ...plans, updated_at: plans.updated_at || null }
     this.family = family
     return {
@@ -329,10 +342,41 @@ const demo = {
 
   edits: null,
 
-  saveEdits (edits) {
+  saveEdits (edits, dishes = this.edits ? this.edits.dishes || [] : [], extra = {}) {
     const now = new Date().toISOString()
-    this.edits = { schema_version: '1.0', updated_at: now, updated_by: 'demo@example.com', edits }
-    return { ok: true, data: this.edits, updated_at: now }
+    this.edits = { schema_version: '1.0', updated_at: now, updated_by: 'demo@example.com', edits, dishes }
+    return { ok: true, data: this.edits, updated_at: now, ...extra }
+  },
+
+  async saveDish ({ dishId, basedOn, fields }) {
+    const edits = this.edits ? this.edits.edits : {}
+    const dishes = (this.edits ? this.edits.dishes || [] : []).map(d => ({ ...d }))
+    const now = new Date().toISOString()
+    if (dishId) {
+      const dish = dishes.find(d => d.id === dishId)
+      if (!dish) return { ok: false, status: 404, error: 'not_found', message: 'No recipe with this id' }
+      for (const [k, v] of Object.entries(fields)) { if (v === null) delete dish[k]; else dish[k] = v }
+      Object.assign(dish, { updated_by: 'demo@example.com', updated_at: now })
+      return this.saveEdits(edits, dishes, { dish_id: dishId })
+    }
+    const taken = new Set([...(this.catalog ? this.catalog.dishes : []), ...dishes].map(d => d.id))
+    const base = fields.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50) || 'ricetta'
+    let id = base
+    for (let n = 2; taken.has(id); n++) id = `${base}-${n}`
+    const dish = { id }
+    for (const [k, v] of Object.entries(fields)) if (v !== null) dish[k] = v
+    if (basedOn) dish.based_on = basedOn
+    Object.assign(dish, { created_by: 'demo@example.com', created_at: now })
+    return this.saveEdits(edits, [...dishes, dish], { dish_id: id })
+  },
+
+  async removeDish (dishId) {
+    const weeks = (this.plans ? this.plans.plans : [])
+      .filter(p => p.meals.some(m => (m.dish_ids || []).includes(dishId))).map(p => p.week_start)
+    if (weeks.length) return { ok: false, status: 409, error: 'in_use', message: 'used in saved weeks', weeks }
+    const dishes = (this.edits ? this.edits.dishes || [] : []).filter(d => d.id !== dishId)
+    return this.saveEdits(this.edits ? this.edits.edits : {}, dishes)
   },
 
   async saveDishEdit (dishId, fields) {

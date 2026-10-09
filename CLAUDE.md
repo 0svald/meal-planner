@@ -47,7 +47,7 @@ Folder `family-meal-planner/` in the owner's Drive:
 | `plans.json` | **app only** | `plans` |
 | `pantry.json` | **app only** | `pantry`: staples kept out of the shopping list; once it exists it replaces `family-data.json`'s `pantry` |
 | `wishlist.json` | **app only** | `wishes`: recipes the family asks to add; the skill adds the dishes with `wish:<id>` in `source.ref` |
-| `dish-edits.json` | **app only** | `edits`: the family's corrections to catalog dishes, applied on top of `catalog.json` (`engine/data.js` `applyDishEdits`) |
+| `dish-edits.json` | **app only** | `edits`: the family's corrections to the catalog's personal dishes (school dishes are read-only), applied on top of `catalog.json` (`engine/data.js` `applyDishEdits`); `dishes`: recipes created in the app, e.g. variants (`withAppDishes`) |
 | `archive/` | both | previous versions, `<name>-YYYYMMDD-HHMM.json` |
 | `shopping-lists/` | app | one text file per week (optional) |
 

@@ -2,7 +2,7 @@
 // meal, live feedback on the rules, save as draft or confirm.
 // Planning logic lives in ../engine/; this file fetches, renders and saves.
 
-import { mergeData, canteenWeek, mondayOf, addDays, isoWeekId, weekdayOf, WEEKDAYS } from '../engine/data.js'
+import { mergeData, canteenWeek, mondayOf, addDays, isoWeekId, weekdayOf, WEEKDAYS, isDishEditable } from '../engine/data.js'
 import { proposeWeek, evaluatePlan, slotOptions } from '../engine/planner.js'
 import { buildWeek, HOME_SLOTS } from '../engine/week.js'
 import { shoppingList, shoppingText, quantityNote, usesNote, AISLE_LABELS, AISLE_ORDER } from '../engine/shopping.js'
@@ -23,7 +23,7 @@ const COURSE_LABELS = {
 }
 // Shown in the settings, to tell which version a phone runs. Bump on every
 // release: YYYY.MM.DD-N, N counting the releases of that day from 1.
-const APP_VERSION = '2026.10.09-7'
+const APP_VERSION = '2026.10.09-8'
 const MINOR_COURSES = new Set(['bread', 'fruit', 'dessert'])
 const DAY_NAMES = {
   mon: 'Lunedì', tue: 'Martedì', wed: 'Mercoledì', thu: 'Giovedì', fri: 'Venerdì', sat: 'Sabato', sun: 'Domenica'
@@ -820,6 +820,8 @@ function renderWishes () {
     const wish = { name: form.name.value.trim(), url: form.url.value.trim(), note: form.note.value.trim() }
     if (!wish.name) return
     changeWishes(() => api.addWish(wish), () => {
+      state.wishFormOpen = false
+      render()
       showStatus('Aggiunta. La caricherà l\'assistente del menu quando glielo chiedi.', 'info')
     })
   })
@@ -849,6 +851,7 @@ function renderWishes () {
   const pending = wishes.filter(w => w.status === 'pending').length
   // A link shared from another app (Android share sheet) fills the form once.
   if (state.sharePrefill) {
+    state.wishFormOpen = true
     form.name.value = state.sharePrefill.name
     form.url.value = state.sharePrefill.url
     form.note.value = state.sharePrefill.note
@@ -858,11 +861,23 @@ function renderWishes () {
 
   $('#wishes-view').replaceChildren(...[
     el('section', { class: 'aisle' },
-      el('h2', {}, 'Ricette da provare'),
+      el('div', { class: 'section-head' },
+        el('h2', {}, 'Ricette da provare'),
+        el('button', {
+          type: 'button',
+          class: state.wishFormOpen ? 'add-btn open' : 'add-btn',
+          'aria-expanded': String(Boolean(state.wishFormOpen)),
+          'aria-label': state.wishFormOpen ? 'Chiudi' : 'Aggiungi una ricetta da provare',
+          onclick: () => {
+            state.wishFormOpen = !state.wishFormOpen
+            render()
+            if (state.wishFormOpen) setTimeout(() => $('.wish-form input[name=name]').focus(), 0)
+          }
+        }, '+')),
       el('p', { class: 'small muted' },
         'Segna qui le ricette da aggiungere al menu. Poi in chat chiedi all\'assistente del menu ' +
         '«carica le ricette della lista»: le classifica, ti chiede conferma e le aggiunge al catalogo.'),
-      form),
+      state.wishFormOpen ? form : null),
     wishes.length
       ? el('p', { class: 'small muted' }, `${pending} in attesa, ${wishes.length - pending} già nel catalogo.`)
       : el('p', { class: 'small muted' }, 'La lista è vuota.'),
@@ -936,9 +951,11 @@ function renderCatalog () {
     count.textContent = dishes.length === 1 ? '1 piatto' : `${dishes.length} piatti`
     list.replaceChildren(...(dishes.length
       ? dishes.map(d => el('li', {},
-        el('button', { type: 'button', class: 'catalog-item', onclick: () => openDishEditor(d.id) },
+        el('button', { type: 'button', class: 'catalog-item', onclick: () => openDish(d.id) },
           el('span', { class: 'catalog-name' }, d.name,
-            d.edited ? el('span', { class: 'badge' }, 'modificato') : null,
+            (d.source || {}).type === 'school' ? el('span', { class: 'badge muted' }, 'mensa') : null,
+            d.app ? el('span', { class: 'badge' }, d.based_on ? 'variante' : 'nuova') : null,
+            d.edited && !d.app ? el('span', { class: 'badge' }, 'modificato') : null,
             !d.verified ? el('span', { class: 'badge warn' }, 'da confermare') : null),
           el('span', { class: 'small muted' }, dishLine(d)))))
       : [el('li', { class: 'small muted' }, 'Nessun piatto trovato.')]))
@@ -981,8 +998,10 @@ function renderCatalog () {
   })
   fill()
   return el('section', { class: 'aisle catalog' },
-    el('h2', {}, 'Catalogo'),
-    el('p', { class: 'small muted' }, 'Tocca un piatto per correggerne i dettagli: le modifiche valgono subito per proposte e spesa.'),
+    el('h2', {}, 'Tutte le ricette'),
+    el('p', { class: 'small muted' },
+      'Tocca una ricetta per vederla. Quelle di casa si possono correggere; quelle della mensa no, ' +
+      'ma puoi crearne una variante. Le modifiche valgono subito per proposte e spesa.'),
     search,
     el('div', { class: 'catalog-filters' }, toggle, count, clear),
     panel,
@@ -1007,7 +1026,56 @@ function ingredientRow (ing = { name: '', aisle: 'produce' }) {
   return row
 }
 
-function openDishEditor (dishId) {
+// School dishes open read-only; the others in the editor.
+function openDish (dishId) {
+  const dish = state.data.dishes.find(d => d.id === dishId)
+  if (!dish) return
+  if (isDishEditable(dish)) openDishEditor(dishId)
+  else openDishView(dish)
+}
+
+function showDishDialog () {
+  applyOnlineState()
+  const dialog = $('#dish-editor')
+  if (!dialog.open) dialog.showModal()
+  dialog.scrollTop = 0
+}
+
+const labelsOf = (values, labels) => (values || []).map(v => labels[v] || v).join(', ')
+
+// A canteen dish: its details, and a variant to make it one's own.
+function openDishView (dish) {
+  const n = dish.nutrition || {}
+  const veg = n.vegetables && n.vegetables.present ? n.vegetables.form || 'cooked' : 'none'
+  const row = (label, value) => value ? el('div', { class: 'view-row' }, el('dt', {}, label), el('dd', {}, value)) : null
+  const form = $('#dish-form')
+  form.replaceChildren(
+    el('h2', {}, dish.name),
+    el('p', { class: 'small muted' }, 'Ricetta della mensa: non si modifica. Crea una variante per cucinarla a modo tuo.'),
+    el('dl', { class: 'dish-view' }, ...[
+      row('Tipo', COURSE_LABELS[dish.course]),
+      row('Preparazione', typeof dish.prep_minutes === 'number' ? `${dish.prep_minutes} min` : null),
+      row('Proteine', labelsOf(n.proteins, PROTEIN_LABELS)),
+      row('Carboidrati', labelsOf(n.carbs, CARB_LABELS)),
+      row('Verdure', VEG_LABELS[veg]),
+      row('Allergeni', labelsOf(dish.allergens, ALLERGEN_LABELS) || 'nessuno'),
+      row('Ingredienti', (dish.ingredients || []).map(i => i.qty ? `${i.name} (${i.qty} ${i.unit || ''})`.replace(' )', ')') : i.name).join(', ')),
+      row('Note', dish.notes)
+    ].filter(Boolean)),
+    el('div', { class: 'actions' },
+      dish.edited
+        ? el('button', { type: 'button', class: 'secondary', 'data-write': true, onclick: () => resetDish(dish) }, 'Ripristina originale')
+        : null,
+      el('button', { type: 'button', class: 'secondary', onclick: () => $('#dish-editor').close() }, 'Chiudi'),
+      el('button', { type: 'button', class: 'primary', onclick: () => openDishEditor(dish.id, { variant: true }) }, 'Crea variante'))
+  )
+  form.onsubmit = event => event.preventDefault()
+  showDishDialog()
+}
+
+// The editor, for a catalog dish (an edit on top of the catalog), a recipe
+// made in the app, or a new variant prefilled from `dishId`.
+function openDishEditor (dishId, { variant = false } = {}) {
   const dish = state.data.dishes.find(d => d.id === dishId)
   if (!dish) return
   const n = dish.nutrition || {}
@@ -1015,8 +1083,9 @@ function openDishEditor (dishId) {
   const ingredients = el('ul', { class: 'ing-list' }, (dish.ingredients || []).map(ingredientRow))
   const form = $('#dish-form')
   form.replaceChildren(
-    el('h2', {}, 'Modifica piatto'),
-    el('label', {}, 'Nome', el('input', { name: 'name', type: 'text', required: true, maxlength: '120', value: dish.name })),
+    el('h2', {}, variant ? 'Nuova variante' : 'Modifica ricetta'),
+    variant ? el('p', { class: 'small muted' }, `Parte da «${dish.name}»: cambia quello che vuoi, l'originale resta com'è.`) : null,
+    el('label', {}, 'Nome', el('input', { name: 'name', type: 'text', required: true, maxlength: '120', value: variant ? `${dish.name} (variante)` : dish.name })),
     el('div', { class: 'two-cols' },
       el('label', {}, 'Tipo',
         el('select', { name: 'course' }, Object.entries(COURSE_LABELS).map(([v, l]) => el('option', { value: v, selected: dish.course === v }, l)))),
@@ -1034,23 +1103,33 @@ function openDishEditor (dishId) {
       el('p', { class: 'small muted' }, 'La quantità è facoltativa: mettila solo se la ricetta la indica.')),
     el('label', {}, 'Note', el('textarea', { name: 'notes', rows: '2', maxlength: '500' }, dish.notes || '')),
     el('label', { class: 'check' }, el('input', { type: 'checkbox', name: 'cookable', checked: dish.cookable_at_home !== false }), el('span', {}, 'Si può cucinare a casa')),
-    el('label', { class: 'check' }, el('input', { type: 'checkbox', name: 'verified', checked: dish.verified === true }), el('span', {}, 'Classificazione confermata')),
-    dish.edited
-      ? el('p', { class: 'small muted' }, `Modificato${dish.edited.by ? ` da ${dish.edited.by.split('@')[0]}` : ''}${dish.edited.at ? ` il ${dateTime(dish.edited.at)}` : ''}.`)
+    el('label', { class: 'check' }, el('input', { type: 'checkbox', name: 'verified', checked: !variant && dish.verified === true }), el('span', {}, 'Classificazione confermata')),
+    !variant && dish.app && dish.created
+      ? el('p', { class: 'small muted' }, `Creata${dish.created.by ? ` da ${dish.created.by.split('@')[0]}` : ''}${dish.created.at ? ` il ${dateTime(dish.created.at)}` : ''}` +
+        (dish.based_on ? `, variante di «${(state.data.dishes.find(d => d.id === dish.based_on) || { name: dish.based_on }).name}»` : '') + '.')
       : null,
-    el('div', { class: 'actions' },
-      dish.edited
+    !variant && dish.edited
+      ? el('p', { class: 'small muted' }, `Modificata${dish.edited.by ? ` da ${dish.edited.by.split('@')[0]}` : ''}${dish.edited.at ? ` il ${dateTime(dish.edited.at)}` : ''}.`)
+      : null,
+    el('div', { class: 'actions wrap' },
+      !variant && dish.edited && !dish.app
         ? el('button', { type: 'button', class: 'secondary', 'data-write': true, onclick: () => resetDish(dish) }, 'Ripristina originale')
         : null,
+      !variant && dish.app
+        ? el('button', { type: 'button', class: 'secondary danger', 'data-write': true, onclick: () => removeAppDish(dish) }, 'Elimina')
+        : null,
+      !variant
+        ? el('button', { type: 'button', class: 'secondary', onclick: () => openDishEditor(dish.id, { variant: true }) }, 'Crea variante')
+        : null,
       el('button', { type: 'button', class: 'secondary', onclick: () => $('#dish-editor').close() }, 'Annulla'),
-      el('button', { type: 'submit', class: 'primary', 'data-write': true }, 'Salva'))
+      el('button', { type: 'submit', class: 'primary', 'data-write': true }, variant ? 'Crea' : 'Salva'))
   )
   form.onsubmit = event => {
     event.preventDefault()
-    saveDish(dish, form)
+    saveDish(dish, form, { variant })
   }
-  applyOnlineState()
-  $('#dish-editor').showModal()
+  showDishDialog()
+  if (variant) form.name.select()
 }
 
 // The form becomes the edited fields; what the form does not show (fats,
@@ -1118,12 +1197,32 @@ async function afterEditSave (body, message) {
   }
 }
 
-async function saveDish (dish, form) {
+async function saveDish (dish, form, { variant = false } = {}) {
   const fields = dishFieldsFrom(dish, form)
   if (!fields.name) return
   showStatus('Salvataggio…', 'info')
-  const body = await api.saveDishEdit(dish.id, fields)
-  afterEditSave(body, `«${fields.name}» aggiornato.`)
+  if (variant) {
+    if (fields.prep_minutes === null) delete fields.prep_minutes
+    if (fields.notes === null) delete fields.notes
+    const body = await api.saveDish({ basedOn: dish.id, fields })
+    return afterEditSave(body, `«${fields.name}» creata: la trovi tra le ricette e nelle proposte.`)
+  }
+  const body = dish.app
+    ? await api.saveDish({ dishId: dish.id, fields })
+    : await api.saveDishEdit(dish.id, fields)
+  afterEditSave(body, `«${fields.name}» aggiornata.`)
+}
+
+async function removeAppDish (dish) {
+  if (!confirm(`Eliminare «${dish.name}»? Non si può annullare.`)) return
+  showStatus('Elimino…', 'info')
+  const body = await api.removeDish(dish.id)
+  if (body.error === 'in_use') {
+    showStatus(`«${dish.name}» è nel piano della settimana del ${(body.weeks || []).map(shortDate).join(', ')}: ` +
+      'toglila prima dal piano.', 'error')
+    return
+  }
+  afterEditSave(body, `«${dish.name}» eliminata.`)
 }
 
 async function resetDish (dish) {

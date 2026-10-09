@@ -737,3 +737,26 @@ body.tab-today main { touch-action: pan-y; }
   font: inherit;
   font-size: 0.95rem;
 }
+
+/* --- recipes: "+" for the wishlist form, read-only canteen dishes --- */
+
+.section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.add-btn {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 1.6rem;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+.add-btn.open { transform: rotate(45deg); }
+.badge.muted { background: var(--border); color: var(--muted); }
+.dish-view { display: grid; gap: 8px; margin: 8px 0 12px; }
+.dish-view .view-row { display: grid; grid-template-columns: 7.5em 1fr; gap: 8px; }
+.dish-view dt { color: var(--muted); font-size: 0.9rem; }
+.dish-view dd { margin: 0; }
+button.danger { color: var(--error); border-color: var(--error); }

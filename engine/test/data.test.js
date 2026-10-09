@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   addDays, weekdayOf, mondayOf, dayNumber, mergeData, applyDefaults,
-  activeMenu, cycleWeek, canteenWeek, isoWeekId, applyDishEdits
+  activeMenu, cycleWeek, canteenWeek, isoWeekId, applyDishEdits, isDishEditable
 } from '../data.js'
 
 const fixture = name =>
@@ -154,4 +154,26 @@ test('dish edits replace catalog fields, null removes one, unknown dishes are ig
   assert.equal(data.dishes.length, catalog.dishes.length)
   assert.equal(catalog.dishes.find(x => x.id === 'pasta-lenticchie').name, 'Pasta e lenticchie', 'catalog not modified')
   assert.equal(applyDishEdits(catalog.dishes, null), catalog.dishes)
+})
+
+test('recipes created in the app join the catalog as personal dishes', () => {
+  const catalog = fixture('catalog')
+  const edits = {
+    edits: {},
+    dishes: [
+      { id: 'frittata-zucchine', name: 'Frittata con zucchine', course: 'second', based_on: 'frittata', ingredients: [{ name: 'uova', aisle: 'dairy' }], created_by: 'papa@example.com', created_at: '2026-10-09T18:00:00Z' },
+      { id: 'pasta-pomodoro', name: 'Duplicato', course: 'first' }
+    ]
+  }
+  const data = mergeData({ catalog, family: fixture('family-data'), edits })
+  assert.equal(data.dishes.length, catalog.dishes.length + 1, 'an id already in the catalog is ignored')
+  const v = data.dishes.find(d => d.id === 'frittata-zucchine')
+  assert.deepEqual(v.source, { type: 'personal', ref: 'app variant:frittata' })
+  assert.equal(v.app, true)
+  assert.deepEqual(v.created, { by: 'papa@example.com', at: '2026-10-09T18:00:00Z' })
+  assert.equal(v.created_by, undefined)
+  assert.deepEqual(v.allergens, [], 'defaults applied')
+  assert.equal(isDishEditable(v), true)
+  assert.equal(isDishEditable(data.dishes.find(d => d.id === 'frittata')), false, 'school dishes are read-only')
+  assert.equal(isDishEditable(data.dishes.find(d => d.id === 'pasta-lenticchie')), true)
 })

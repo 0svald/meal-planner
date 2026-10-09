@@ -176,7 +176,16 @@ applied under the lock to the current list, old copy to
 `dish-edits.json` (replacing that dish's previous edit); `{"action":
 "resetDishEdit", "dish_id"}` removes it. The dish must exist in `catalog.json`,
 which is never written. Fields and values are checked against the skill's
-closed sets (`422 invalid_dish`): see `docs/schema.md`.
+closed sets (`422 invalid_dish`): see `docs/schema.md`. School dishes take no
+edits (`422 not_editable`).
+
+`{"action": "saveDish", "based_on": "frittata", "fields": {…}}` creates a
+recipe in `dish-edits.json` `dishes` (name and course required; `based_on`
+optional), with an id made from the name; the answer carries `dish_id`.
+`{"action": "saveDish", "dish_id", "fields"}` changes one made in the app
+(`null` removes a field). `{"action": "removeDish", "dish_id"}` deletes it,
+unless a saved plan uses it (`409 in_use`, with `weeks`). Plans may use these
+ids.
 
 `GET <exec>?resource=config` (no token) returns `{ok, client_id}`: the client id
 is public, the page needs it to show the Google sign-in. Nothing else is
