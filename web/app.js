@@ -5,7 +5,7 @@
 import { mergeData, canteenWeek, mondayOf, addDays, isoWeekId, weekdayOf, WEEKDAYS } from '../engine/data.js'
 import { proposeWeek, evaluatePlan, slotOptions } from '../engine/planner.js'
 import { buildWeek, HOME_SLOTS } from '../engine/week.js'
-import { shoppingList, shoppingText, quantityNote, usesNote } from '../engine/shopping.js'
+import { shoppingList, shoppingText, quantityNote, usesNote, AISLE_LABELS, AISLE_ORDER } from '../engine/shopping.js'
 import { wishlistView } from '../engine/wishlist.js'
 import { STORE, readJSON, writeJSON } from './storage.js'
 import * as api from './api.js'
@@ -21,7 +21,7 @@ const COURSE_LABELS = {
   takeaway: 'Asporto'
 }
 // Shown in the settings, to tell which version a phone runs. Bump on release.
-const APP_VERSION = '2026-10-09.2'
+const APP_VERSION = '2026-10-10'
 const MINOR_COURSES = new Set(['bread', 'fruit', 'dessert'])
 const DAY_NAMES = {
   mon: 'Lunedì', tue: 'Martedì', wed: 'Mercoledì', thu: 'Giovedì', fri: 'Venerdì', sat: 'Sabato', sun: 'Domenica'
@@ -119,7 +119,8 @@ function setData (cache) {
     family: r.family.data,
     plans: r.plans.data,
     pantry: r.pantry ? r.pantry.data : null,
-    wishlist: r.wishlist ? r.wishlist.data : null
+    wishlist: r.wishlist ? r.wishlist.data : null,
+    edits: r.edits ? r.edits.data : null
   })
   state.plansUpdatedAt = (r.plans.data && r.plans.data.updated_at) || null
   state.fetchedAt = cache.fetchedAt
@@ -691,7 +692,7 @@ function renderShopping (draft, saved) {
       el('ul', { class: 'items' }, a.items.map(item)))),
     skipped.length ? el('p', { class: 'small muted' }, `Non in lista: ${skipped.join('; ')}.`) : null,
     checked.size
-      ? el('button', { type: 'button', class: 'link-btn', onclick: () => { setChecks(weekStart, []); render() } }, 'Togli tutte le spunte')
+      ? el('button', { type: 'button', class: 'link-btn', onclick: () => { setChecks(weekStart, []); render() } }, 'Rimuovi tutte le spunte')
       : null,
     el('p', { class: 'small muted' }, 'Le quantità compaiono solo quando la ricetta le indica.'),
     renderPantry(list)
@@ -762,7 +763,7 @@ function renderPantry (list) {
           type: 'button',
           class: 'remove',
           'data-write': true,
-          'aria-label': `Togli ${name} dalla dispensa`,
+          'aria-label': `Rimuovi ${name} dalla dispensa`,
           onclick: () => changePantry({ remove: [name] })
         }, '×'))))
       : el('p', { class: 'small muted' }, 'La dispensa è vuota.'),
@@ -843,9 +844,9 @@ function renderWishes () {
         class: 'link-btn',
         'data-write': true,
         onclick: () => {
-          if (confirm(`Togliere «${w.name}» dalla lista?`)) changeWishes(() => api.removeWish(w.id))
+          if (confirm(`Rimuovere «${w.name}» dalla lista?`)) changeWishes(() => api.removeWish(w.id))
         }
-      }, 'Togli')))
+      }, 'Rimuovi')))
 
   const pending = wishes.filter(w => w.status === 'pending').length
   // A link shared from another app (Android share sheet) fills the form once.
@@ -867,8 +868,241 @@ function renderWishes () {
     wishes.length
       ? el('p', { class: 'small muted' }, `${pending} in attesa, ${wishes.length - pending} già nel catalogo.`)
       : el('p', { class: 'small muted' }, 'La lista è vuota.'),
-    wishes.length ? el('ul', { class: 'wishes' }, wishes.map(card)) : null
+    wishes.length ? el('ul', { class: 'wishes' }, wishes.map(card)) : null,
+    renderCatalog()
   ].filter(Boolean))
+}
+
+// --- catalog: look up and correct dishes ----------------------------------------
+
+const PROTEIN_LABELS = {
+  red_meat: 'Carne rossa',
+  white_meat: 'Carne bianca',
+  processed_meat: 'Salumi e carni lavorate',
+  fish: 'Pesce',
+  shellfish: 'Molluschi e crostacei',
+  eggs: 'Uova',
+  cheese: 'Formaggi',
+  legumes: 'Legumi'
+}
+const CARB_LABELS = { cereals: 'Cereali (pasta, riso, pane…)', tubers: 'Patate', legumes: 'Legumi', simple_sugars: 'Zuccheri' }
+const VEG_LABELS = { none: 'Nessuna', cooked: 'Cotte', raw: 'Crude', both: 'Crude e cotte' }
+const ALLERGEN_LABELS = {
+  gluten: 'Glutine',
+  crustaceans: 'Crostacei',
+  eggs: 'Uova',
+  fish: 'Pesce',
+  peanuts: 'Arachidi',
+  soy: 'Soia',
+  milk: 'Latte',
+  nuts: 'Frutta a guscio',
+  celery: 'Sedano',
+  mustard: 'Senape',
+  sesame: 'Sesamo',
+  sulphites: 'Solfiti',
+  lupin: 'Lupini',
+  molluscs: 'Molluschi'
+}
+const CATALOG_FILTERS = { all: 'Tutti', home: 'Di casa', unverified: 'Da confermare', edited: 'Modificati' }
+
+function dishMatches (dish, query, filter) {
+  if (filter === 'home' && !['personal', 'web'].includes((dish.source || {}).type)) return false
+  if (filter === 'unverified' && dish.verified) return false
+  if (filter === 'edited' && !dish.edited) return false
+  return !query || dish.name.toLowerCase().includes(query)
+}
+
+function dishLine (dish) {
+  const bits = [COURSE_LABELS[dish.course] || dish.course]
+  if (typeof dish.prep_minutes === 'number') bits.push(`${dish.prep_minutes} min`)
+  const proteins = ((dish.nutrition || {}).proteins || []).map(p => (PROTEIN_LABELS[p] || p).toLowerCase())
+  if (proteins.length) bits.push(proteins.join(', '))
+  return bits.join(' · ')
+}
+
+function renderCatalog () {
+  state.catalogQuery = state.catalogQuery || ''
+  state.catalogFilter = state.catalogFilter || 'all'
+  const list = el('ul', { class: 'catalog-list' })
+  const fill = () => {
+    const q = state.catalogQuery.trim().toLowerCase()
+    const dishes = state.data.dishes
+      .filter(d => dishMatches(d, q, state.catalogFilter))
+      .sort((a, b) => a.name.localeCompare(b.name, 'it'))
+    list.replaceChildren(...(dishes.length
+      ? dishes.map(d => el('li', {},
+        el('button', { type: 'button', class: 'catalog-item', onclick: () => openDishEditor(d.id) },
+          el('span', { class: 'catalog-name' }, d.name,
+            d.edited ? el('span', { class: 'badge' }, 'modificato') : null,
+            !d.verified ? el('span', { class: 'badge warn' }, 'da confermare') : null),
+          el('span', { class: 'small muted' }, dishLine(d)))))
+      : [el('li', { class: 'small muted' }, 'Nessun piatto trovato.')]))
+  }
+  const search = el('input', {
+    type: 'search',
+    placeholder: 'Cerca un piatto',
+    value: state.catalogQuery,
+    'aria-label': 'Cerca un piatto',
+    autocomplete: 'off'
+  })
+  // Typing filters the list only, so the field keeps its focus.
+  search.addEventListener('input', () => { state.catalogQuery = search.value; fill() })
+  const filters = el('div', { class: 'catalog-filters', role: 'group', 'aria-label': 'Filtro' },
+    Object.entries(CATALOG_FILTERS).map(([key, label]) => el('button', {
+      type: 'button',
+      class: state.catalogFilter === key ? 'filter on' : 'filter',
+      'aria-pressed': String(state.catalogFilter === key),
+      onclick: () => { state.catalogFilter = key; render() }
+    }, label)))
+  fill()
+  return el('section', { class: 'aisle catalog' },
+    el('h2', {}, 'Catalogo'),
+    el('p', { class: 'small muted' }, 'Tocca un piatto per correggerne i dettagli: le modifiche valgono subito per proposte e spesa.'),
+    search, filters, list)
+}
+
+function checkboxGroup (name, labels, selected) {
+  return el('div', { class: 'check-group' },
+    Object.entries(labels).map(([value, label]) => el('label', { class: 'check' },
+      el('input', { type: 'checkbox', name, value, checked: selected.includes(value) }),
+      el('span', {}, label))))
+}
+
+function ingredientRow (ing = { name: '', aisle: 'produce' }) {
+  const row = el('li', { class: 'ing-row' },
+    el('input', { type: 'text', class: 'ing-name', value: ing.name || '', placeholder: 'Ingrediente', maxlength: '80', 'aria-label': 'Ingrediente' }),
+    el('select', { class: 'ing-aisle', 'aria-label': 'Reparto' },
+      AISLE_ORDER.map(a => el('option', { value: a, selected: (ing.aisle || 'other') === a }, AISLE_LABELS[a]))),
+    el('input', { type: 'number', class: 'ing-qty', value: ing.qty !== undefined ? String(ing.qty) : '', placeholder: 'Q.tà', min: '0', step: 'any', 'aria-label': 'Quantità (facoltativa)' }),
+    el('input', { type: 'text', class: 'ing-unit', value: ing.unit || '', placeholder: 'g', maxlength: '20', 'aria-label': 'Unità' }),
+    el('button', { type: 'button', class: 'remove', 'aria-label': 'Rimuovi ingrediente', onclick: () => row.remove() }, '×'))
+  return row
+}
+
+function openDishEditor (dishId) {
+  const dish = state.data.dishes.find(d => d.id === dishId)
+  if (!dish) return
+  const n = dish.nutrition || {}
+  const veg = n.vegetables && n.vegetables.present ? n.vegetables.form || 'cooked' : 'none'
+  const ingredients = el('ul', { class: 'ing-list' }, (dish.ingredients || []).map(ingredientRow))
+  const form = $('#dish-form')
+  form.replaceChildren(
+    el('h2', {}, 'Modifica piatto'),
+    el('label', {}, 'Nome', el('input', { name: 'name', type: 'text', required: true, maxlength: '120', value: dish.name })),
+    el('div', { class: 'two-cols' },
+      el('label', {}, 'Tipo',
+        el('select', { name: 'course' }, Object.entries(COURSE_LABELS).map(([v, l]) => el('option', { value: v, selected: dish.course === v }, l)))),
+      el('label', {}, 'Preparazione (minuti)',
+        el('input', { name: 'prep', type: 'number', min: '0', max: '600', step: '1', value: typeof dish.prep_minutes === 'number' ? String(dish.prep_minutes) : '', placeholder: 'non indicato' }))),
+    el('fieldset', {}, el('legend', {}, 'Proteine'), checkboxGroup('proteins', PROTEIN_LABELS, n.proteins || [])),
+    el('fieldset', {}, el('legend', {}, 'Carboidrati'), checkboxGroup('carbs', CARB_LABELS, n.carbs || [])),
+    el('fieldset', {}, el('legend', {}, 'Verdure'),
+      el('div', { class: 'check-group' }, Object.entries(VEG_LABELS).map(([v, l]) => el('label', { class: 'check' },
+        el('input', { type: 'radio', name: 'veg', value: v, checked: veg === v }), el('span', {}, l))))),
+    el('fieldset', {}, el('legend', {}, 'Allergeni'), checkboxGroup('allergens', ALLERGEN_LABELS, dish.allergens || [])),
+    el('fieldset', {}, el('legend', {}, 'Ingredienti'),
+      ingredients,
+      el('button', { type: 'button', class: 'link-btn', onclick: () => ingredients.append(ingredientRow()) }, '+ Aggiungi ingrediente'),
+      el('p', { class: 'small muted' }, 'La quantità è facoltativa: mettila solo se la ricetta la indica.')),
+    el('label', {}, 'Note', el('textarea', { name: 'notes', rows: '2', maxlength: '500' }, dish.notes || '')),
+    el('label', { class: 'check' }, el('input', { type: 'checkbox', name: 'cookable', checked: dish.cookable_at_home !== false }), el('span', {}, 'Si può cucinare a casa')),
+    el('label', { class: 'check' }, el('input', { type: 'checkbox', name: 'verified', checked: dish.verified === true }), el('span', {}, 'Classificazione confermata')),
+    dish.edited
+      ? el('p', { class: 'small muted' }, `Modificato${dish.edited.by ? ` da ${dish.edited.by.split('@')[0]}` : ''}${dish.edited.at ? ` il ${dateTime(dish.edited.at)}` : ''}.`)
+      : null,
+    el('div', { class: 'actions' },
+      dish.edited
+        ? el('button', { type: 'button', class: 'secondary', 'data-write': true, onclick: () => resetDish(dish) }, 'Ripristina originale')
+        : null,
+      el('button', { type: 'button', class: 'secondary', onclick: () => $('#dish-editor').close() }, 'Annulla'),
+      el('button', { type: 'submit', class: 'primary', 'data-write': true }, 'Salva'))
+  )
+  form.onsubmit = event => {
+    event.preventDefault()
+    saveDish(dish, form)
+  }
+  applyOnlineState()
+  $('#dish-editor').showModal()
+}
+
+// The form becomes the edited fields; what the form does not show (fats,
+// cereal types, tags) is kept from the dish as it is.
+function dishFieldsFrom (dish, form) {
+  const checked = name => [...form.querySelectorAll(`input[name="${name}"]:checked`)].map(i => i.value)
+  const n = dish.nutrition || {}
+  const carbs = checked('carbs')
+  const veg = (form.querySelector('input[name="veg"]:checked') || {}).value || 'none'
+  const verified = form.verified.checked
+  const prep = form.prep.value.trim()
+  const ingredients = [...form.querySelectorAll('.ing-row')].map(row => {
+    const name = row.querySelector('.ing-name').value.trim()
+    if (!name) return null
+    const ing = { name, aisle: row.querySelector('.ing-aisle').value }
+    const qty = row.querySelector('.ing-qty').value.trim()
+    if (qty && Number(qty) > 0) {
+      ing.qty = Number(qty)
+      ing.unit = row.querySelector('.ing-unit').value.trim()
+    }
+    return ing
+  }).filter(Boolean)
+  const nutrition = {
+    carbs,
+    cereals: carbs.includes('cereals') ? (n.cereals || []) : [],
+    proteins: checked('proteins'),
+    fats: n.fats || [],
+    vegetables: veg === 'none' ? { present: false } : { present: true, form: veg },
+    confidence: verified ? 'high' : (n.confidence || 'medium')
+  }
+  return {
+    name: form.name.value.trim(),
+    course: form.course.value,
+    prep_minutes: prep === '' ? null : Math.round(Number(prep)),
+    allergens: checked('allergens'),
+    ingredients,
+    nutrition,
+    notes: form.notes.value.trim() || null,
+    cookable_at_home: form.cookable.checked,
+    verified
+  }
+}
+
+async function afterEditSave (body, message) {
+  if (body.ok) {
+    const cache = api.DEMO ? null : readJSON(STORE.cache)
+    if (cache) {
+      cache.resources.edits = { data: body.data, updated_at: body.updated_at }
+      writeJSON(STORE.cache, cache)
+      setData(cache)
+    } else {
+      await refresh()
+    }
+    $('#dish-editor').close()
+    render()
+    showStatus(message, 'info')
+    return
+  }
+  if (['offline', 'unreachable', 'signin_unavailable'].includes(body.error)) {
+    showStatus('Non riesco a salvare adesso: riprova quando sei online.', 'error')
+  } else if (body.error === 'invalid_dish') {
+    showStatus(`Controlla i campi: ${body.message}`, 'error')
+  } else {
+    showStatus(messageFor(body), 'error')
+  }
+}
+
+async function saveDish (dish, form) {
+  const fields = dishFieldsFrom(dish, form)
+  if (!fields.name) return
+  showStatus('Salvataggio…', 'info')
+  const body = await api.saveDishEdit(dish.id, fields)
+  afterEditSave(body, `«${fields.name}» aggiornato.`)
+}
+
+async function resetDish (dish) {
+  if (!confirm(`Ripristinare «${dish.name}» com'è nel catalogo, senza le modifiche fatte dall'app?`)) return
+  showStatus('Ripristino…', 'info')
+  const body = await api.resetDishEdit(dish.id)
+  afterEditSave(body, 'Piatto ripristinato com\'era nel catalogo.')
 }
 
 function showTab (tab) {
@@ -969,7 +1203,7 @@ function renderMembers (members) {
         class: 'link-btn',
         'data-write': true,
         onclick: async () => {
-          if (!confirm(`Togliere l'accesso a ${m.email}?`)) return
+          if (!confirm(`Rimuovere l'accesso a ${m.email}?`)) return
           const body = await api.removeMember(m.email)
           if (body.ok) {
             renderMembers(body.members)
@@ -978,7 +1212,7 @@ function renderMembers (members) {
             showStatus(messageFor(body), 'error')
           }
         }
-      }, 'Togli'))))
+      }, 'Rimuovi'))))
   applyOnlineState()
 }
 

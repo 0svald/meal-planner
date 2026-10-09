@@ -9,7 +9,7 @@ Status: **phase E**, all phases of `PLAN.md` built: the week with three options
 per meal and live feedback on the rules (`plans.json`); the shopping list,
 checkable and shared in one tap, with the pantry edited in the app
 (`pantry.json`); the recipe wishlist for the skill to load (`wishlist.json`,
-`docs/skill-integration.md`); installable, and it opens without a connection.
+`docs/skill-integration.md`); dish corrections from the app (`dish-edits.json`); installable, and it opens without a connection.
 Engine: `docs/engine.md`.
 
 ## Layout

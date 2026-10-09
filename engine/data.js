@@ -54,19 +54,48 @@ export function isoWeekId (date) {
 // Merge the Drive files into the single object of docs/schema.md.
 // `plans` comes from plans.json and `pantry` from pantry.json (both written by
 // the app); until those files exist, from family-data.json. `wishlist` (recipes
-// the family would like added) comes from wishlist.json, also the app's.
-export function mergeData ({ catalog = {}, family = {}, plans = null, pantry = null, wishlist = null } = {}) {
+// the family would like added) comes from wishlist.json, also the app's;
+// `edits` (dish-edits.json) changes catalog dishes, see applyDishEdits.
+export function mergeData ({ catalog = {}, family = {}, plans = null, pantry = null, wishlist = null, edits = null } = {}) {
   const planList = plans && Array.isArray(plans.plans) ? plans.plans : family.plans
   const staples = pantry && Array.isArray(pantry.pantry) ? pantry.pantry : family.pantry
   return applyDefaults({
     schema_version: catalog.schema_version || family.schema_version || SCHEMA_VERSION,
     family: family.family || {},
-    dishes: catalog.dishes || [],
+    dishes: applyDishEdits(catalog.dishes || [], edits && edits.edits),
     school_menus: catalog.school_menus || [],
     rules: family.rules || [],
     plans: planList || [],
     pantry: staples || [],
     wishlist: (wishlist && Array.isArray(wishlist.wishes)) ? wishlist.wishes : []
+  })
+}
+
+// Fields of a dish the family may change from the app (dish-edits.json).
+export const EDITABLE_DISH_FIELDS = [
+  'name', 'course', 'allergens', 'ingredients', 'nutrition', 'prep_minutes',
+  'notes', 'verified', 'cookable_at_home', 'tags'
+]
+
+// dish-edits.json, written by the app only, sits on top of catalog.json:
+// { edits: { [dishId]: { fields: {...}, edited_by, edited_at } } }. Each
+// edited field replaces the catalog's (a list or the nutrition object as a
+// whole); a `null` field removes it (e.g. an unknown prep time). Edits of
+// dishes no longer in the catalog are ignored. Edited dishes carry
+// `edited: { by, at }` for the UI.
+export function applyDishEdits (dishes, edits) {
+  if (!edits) return dishes
+  return dishes.map(dish => {
+    const edit = edits[dish.id]
+    if (!edit || !edit.fields) return dish
+    const out = { ...dish }
+    for (const key of EDITABLE_DISH_FIELDS) {
+      if (!(key in edit.fields)) continue
+      if (edit.fields[key] === null) delete out[key]
+      else out[key] = edit.fields[key]
+    }
+    out.edited = { by: edit.edited_by || null, at: edit.edited_at || null }
+    return out
   })
 }
 
