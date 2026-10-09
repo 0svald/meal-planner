@@ -21,7 +21,7 @@ const COURSE_LABELS = {
   takeaway: 'Asporto'
 }
 // Shown in the settings, to tell which version a phone runs. Bump on release.
-const APP_VERSION = '2026-10-11'
+const APP_VERSION = '2026-10-12'
 const MINOR_COURSES = new Set(['bread', 'fruit', 'dessert'])
 const DAY_NAMES = {
   mon: 'Lunedì', tue: 'Martedì', wed: 'Mercoledì', thu: 'Giovedì', fri: 'Venerdì', sat: 'Sabato', sun: 'Domenica'
