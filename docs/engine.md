@@ -106,3 +106,20 @@ week shown, and says so when it is not confirmed):
 
 `shoppingText(list, {exclude})` gives the text to share: a heading per aisle,
 one `- item` per line, ticked items left out.
+
+## Catalog search
+
+`engine/search.js` `searchDishes(dishes, filters)` backs the Ricette →
+Catalogo search. The free text is split into words, and every word must
+appear in the dish's name, aliases, tags or ingredient names; case and
+accents are ignored. Each filter narrows the list further:
+
+- `course`;
+- `protein` and `carb` (`none` = the dish has none);
+- `vegetables` (`any`, `raw`, `cooked`, `none`; `both` counts as raw and as cooked);
+- `without` (allergens the dish must not contain);
+- `max_minutes` (dishes without a time are left out);
+- `origin` (`home` = personal or web, `school`, `takeaway`);
+- `status` (`unverified`, `edited`, `cookable`).
+
+Results are sorted by name.

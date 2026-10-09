@@ -7,6 +7,7 @@ import { proposeWeek, evaluatePlan, slotOptions } from '../engine/planner.js'
 import { buildWeek, HOME_SLOTS } from '../engine/week.js'
 import { shoppingList, shoppingText, quantityNote, usesNote, AISLE_LABELS, AISLE_ORDER } from '../engine/shopping.js'
 import { wishlistView } from '../engine/wishlist.js'
+import { searchDishes, activeFilterCount } from '../engine/search.js'
 import { STORE, readJSON, writeJSON } from './storage.js'
 import * as api from './api.js'
 
@@ -20,8 +21,9 @@ const COURSE_LABELS = {
   dessert: 'Dolce',
   takeaway: 'Asporto'
 }
-// Shown in the settings, to tell which version a phone runs. Bump on release.
-const APP_VERSION = '2026-10-15'
+// Shown in the settings, to tell which version a phone runs. Bump on every
+// release: YYYY.MM.DD-N, N counting the releases of that day from 1.
+const APP_VERSION = '2026.10.09-7'
 const MINOR_COURSES = new Set(['bread', 'fruit', 'dessert'])
 const DAY_NAMES = {
   mon: 'Lunedì', tue: 'Martedì', wed: 'Mercoledì', thu: 'Giovedì', fri: 'Venerdì', sat: 'Sabato', sun: 'Domenica'
@@ -899,14 +901,17 @@ const ALLERGEN_LABELS = {
   lupin: 'Lupini',
   molluscs: 'Molluschi'
 }
-const CATALOG_FILTERS = { all: 'Tutti', home: 'Di casa', unverified: 'Da confermare', edited: 'Modificati' }
-
-function dishMatches (dish, query, filter) {
-  if (filter === 'home' && !['personal', 'web'].includes((dish.source || {}).type)) return false
-  if (filter === 'unverified' && dish.verified) return false
-  if (filter === 'edited' && !dish.edited) return false
-  return !query || dish.name.toLowerCase().includes(query)
-}
+// Filters of the catalog search (engine/search.js): each select offers ''
+// (any) plus the values below.
+const CATALOG_SELECTS = [
+  { key: 'course', label: 'Tipo', options: COURSE_LABELS },
+  { key: 'protein', label: 'Proteine', options: { ...PROTEIN_LABELS, none: 'Senza proteine' } },
+  { key: 'carb', label: 'Carboidrati', options: { ...CARB_LABELS, none: 'Senza carboidrati' } },
+  { key: 'vegetables', label: 'Verdure', options: { any: 'Con verdure', raw: 'Crude', cooked: 'Cotte', none: 'Senza verdure' } },
+  { key: 'max_minutes', label: 'Tempo', options: { 15: 'Fino a 15 min', 30: 'Fino a 30 min', 45: 'Fino a 45 min', 60: 'Fino a 1 ora' } },
+  { key: 'origin', label: 'Origine', options: { home: 'Di casa', school: 'Della mensa', takeaway: 'Asporto' } },
+  { key: 'status', label: 'Stato', options: { unverified: 'Da confermare', edited: 'Modificati', cookable: 'Si cucinano a casa' } }
+]
 
 function dishLine (dish) {
   const bits = [COURSE_LABELS[dish.course] || dish.course]
@@ -917,14 +922,18 @@ function dishLine (dish) {
 }
 
 function renderCatalog () {
-  state.catalogQuery = state.catalogQuery || ''
-  state.catalogFilter = state.catalogFilter || 'all'
+  const filters = state.catalogFilters = state.catalogFilters || { text: '', without: [] }
   const list = el('ul', { class: 'catalog-list' })
+  const count = el('p', { class: 'small muted catalog-count', 'aria-live': 'polite' })
+  const toggle = el('button', { type: 'button', class: 'filter', 'aria-expanded': String(Boolean(state.catalogPanel)) })
+  const clear = el('button', { type: 'button', class: 'link-btn' }, 'Azzera filtri')
   const fill = () => {
-    const q = state.catalogQuery.trim().toLowerCase()
-    const dishes = state.data.dishes
-      .filter(d => dishMatches(d, q, state.catalogFilter))
-      .sort((a, b) => a.name.localeCompare(b.name, 'it'))
+    const dishes = searchDishes(state.data.dishes, filters)
+    const n = activeFilterCount(filters)
+    toggle.textContent = n ? `Filtri (${n})` : 'Filtri'
+    toggle.classList.toggle('on', n > 0)
+    clear.hidden = !n && !filters.text
+    count.textContent = dishes.length === 1 ? '1 piatto' : `${dishes.length} piatti`
     list.replaceChildren(...(dishes.length
       ? dishes.map(d => el('li', {},
         el('button', { type: 'button', class: 'catalog-item', onclick: () => openDishEditor(d.id) },
@@ -936,25 +945,48 @@ function renderCatalog () {
   }
   const search = el('input', {
     type: 'search',
-    placeholder: 'Cerca un piatto',
-    value: state.catalogQuery,
+    placeholder: 'Cerca per nome o ingrediente',
+    value: filters.text,
     'aria-label': 'Cerca un piatto',
     autocomplete: 'off'
   })
-  // Typing filters the list only, so the field keeps its focus.
-  search.addEventListener('input', () => { state.catalogQuery = search.value; fill() })
-  const filters = el('div', { class: 'catalog-filters', role: 'group', 'aria-label': 'Filtro' },
-    Object.entries(CATALOG_FILTERS).map(([key, label]) => el('button', {
-      type: 'button',
-      class: state.catalogFilter === key ? 'filter on' : 'filter',
-      'aria-pressed': String(state.catalogFilter === key),
-      onclick: () => { state.catalogFilter = key; render() }
-    }, label)))
+  // Typing and choosing filters update the list only, so the field keeps its
+  // focus and the panel stays open.
+  search.addEventListener('input', () => { filters.text = search.value; fill() })
+
+  const selects = CATALOG_SELECTS.map(({ key, label, options }) => {
+    const select = el('select', { name: key },
+      el('option', { value: '' }, 'Tutti'),
+      Object.entries(options).map(([value, text]) => el('option', { value, selected: String(filters[key] || '') === value }, text)))
+    select.addEventListener('change', () => { filters[key] = select.value; fill() })
+    return el('label', {}, label, select)
+  })
+  const allergens = el('fieldset', { class: 'catalog-without' },
+    el('legend', {}, 'Senza'),
+    checkboxGroup('without', ALLERGEN_LABELS, filters.without))
+  allergens.addEventListener('change', () => {
+    filters.without = [...allergens.querySelectorAll('input:checked')].map(i => i.value)
+    fill()
+  })
+  const panel = el('div', { class: 'catalog-panel' }, el('div', { class: 'two-cols' }, selects), allergens)
+  panel.hidden = !state.catalogPanel
+  toggle.addEventListener('click', () => {
+    state.catalogPanel = !state.catalogPanel
+    panel.hidden = !state.catalogPanel
+    toggle.setAttribute('aria-expanded', String(state.catalogPanel))
+  })
+  clear.addEventListener('click', () => {
+    state.catalogFilters = { text: '', without: [] }
+    render()
+  })
   fill()
   return el('section', { class: 'aisle catalog' },
     el('h2', {}, 'Catalogo'),
     el('p', { class: 'small muted' }, 'Tocca un piatto per correggerne i dettagli: le modifiche valgono subito per proposte e spesa.'),
-    search, filters, list)
+    search,
+    el('div', { class: 'catalog-filters' }, toggle, count, clear),
+    panel,
+    list)
 }
 
 function checkboxGroup (name, labels, selected) {
