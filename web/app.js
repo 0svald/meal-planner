@@ -21,7 +21,7 @@ const COURSE_LABELS = {
   takeaway: 'Asporto'
 }
 // Shown in the settings, to tell which version a phone runs. Bump on release.
-const APP_VERSION = '2026-10-13'
+const APP_VERSION = '2026-10-14'
 const MINOR_COURSES = new Set(['bread', 'fruit', 'dessert'])
 const DAY_NAMES = {
   mon: 'Lunedì', tue: 'Martedì', wed: 'Mercoledì', thu: 'Giovedì', fri: 'Venerdì', sat: 'Sabato', sun: 'Domenica'
@@ -162,8 +162,9 @@ async function refresh ({ retried = false } = {}) {
     state.data = null
     $('#week').hidden = true
     showStatus(
-      `L'account ${body.email || ''} non è autorizzato a vedere il menu di famiglia. ` +
-      'Chiedi di essere aggiunto all\'elenco, oppure accedi con un altro account.',
+      `Il link è giusto, ma l'account ${body.email || ''} non è tra quelli invitati. ` +
+      'Chiedi a chi ti ha mandato il link di invitare proprio questo indirizzo (⚙︎ → Famiglia), ' +
+      'oppure accedi con l\'account Google invitato.',
       'error'
     )
     api.requestToken(api.config().clientId).then(() => refresh(), () => {})

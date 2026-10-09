@@ -284,3 +284,18 @@ test('saveDishEdit refuses unknown dishes, fields and values', () => {
   assert.equal(save('pasta', 'not an object').error, 'invalid_dish')
   assert.equal(s.post({ id_token: 'ZIO', action: 'saveDishEdit', dish_id: 'pasta', fields: { name: 'x' } }).status, 403)
 })
+
+test('Gmail addresses match ignoring dots, "+" suffixes, case and googlemail.com', () => {
+  const s = loadScript({
+    files: { 'catalog.json': catalog, 'family-data.json': family },
+    tokens: { ...tokens, MARIO: token('mariorossi@gmail.com'), OTHER: token('mario.rosso@gmail.com') },
+    allowed: 'Mario.Rossi+menu@googlemail.com'
+  })
+  assert.equal(s.get({ resource: 'all', id_token: 'MARIO' }).ok, true)
+  assert.equal(s.get({ resource: 'all', id_token: 'OTHER' }).status, 403)
+  s.post({ id_token: 'MAMMA', action: 'inviteMember', email: 'mario.rossi@gmail.com', app_url: APP, endpoint: EXEC })
+  assert.equal(s.props.ALLOWED, 'Mario.Rossi+menu@googlemail.com'.toLowerCase(), 'same account is not added twice')
+  const out = s.post({ id_token: 'MAMMA', action: 'removeMember', email: 'mariorossi@gmail.com' })
+  assert.equal(out.ok, true)
+  assert.equal(s.get({ resource: 'all', id_token: 'MARIO' }).status, 403)
+})
