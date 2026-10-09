@@ -652,7 +652,12 @@ body.tab-today main { touch-action: pan-y; }
   color: var(--text);
   font: inherit;
 }
-.catalog-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.catalog-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 8px; }
+.catalog-count { margin: 0; }
+.catalog-panel { margin-bottom: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 12px; }
+.catalog-panel label { display: flex; flex-direction: column; gap: 2px; font-size: 0.85rem; }
+.catalog-without { margin: 8px 0 0; padding: 0; border: 0; }
+.catalog-without legend { font-size: 0.85rem; padding: 0; margin-bottom: 4px; }
 .catalog-filters .filter {
   min-height: 36px;
   padding: 0 12px;
@@ -693,7 +698,7 @@ body.tab-today main { touch-action: pan-y; }
   color: var(--text);
   font: inherit;
 }
-.dish-form .two-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dish-form .two-cols, .catalog-panel .two-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .dish-form fieldset { margin: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; }
 .dish-form legend { padding: 0 4px; font-size: 0.85rem; font-weight: 600; }
 .check-group { display: flex; flex-wrap: wrap; gap: 4px 12px; }
@@ -719,3 +724,16 @@ body.tab-today main { touch-action: pan-y; }
 .dish-form .actions { position: sticky; bottom: calc(-16px - env(safe-area-inset-bottom)); margin: 4px -16px 0; padding: 10px 16px; background: var(--card); border-top: 1px solid var(--border); }
 .dish-form .actions button { min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); }
 .dish-form .actions .primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.catalog-panel .two-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.catalog-panel select {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  color: inherit;
+  font: inherit;
+  font-size: 0.95rem;
+}

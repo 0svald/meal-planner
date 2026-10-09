@@ -107,6 +107,8 @@ Schema essentials:
   no install needed; `Code.gs` runs against an in-memory Drive). They must pass
   without network access.
 - Commit messages in English, imperative mood.
+- Every release bumps `APP_VERSION` in `web/app.js` as `YYYY.MM.DD-N`: the
+  release date and N, the number of that day's release starting from 1.
 - Never commit real family data, emails, Drive ids or deployment URLs. Those live
   in Script Properties, in the invitation links and in the browser's
   `localStorage`; `web/config.js` (git-ignored, `config.example.js` checked in)
