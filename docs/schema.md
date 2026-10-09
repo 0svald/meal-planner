@@ -12,7 +12,7 @@ The data is split across three Drive files:
 | `plans.json` | `plans`, plus `updated_at`, `updated_by` | app only |
 | `pantry.json` | `pantry`, plus `updated_at`, `updated_by` | app only |
 | `wishlist.json` | `wishes`, plus `updated_at`, `updated_by` | app only |
-| `dish-edits.json` | `edits`, plus `updated_at`, `updated_by` | app only |
+| `dish-edits.json` | `edits`, `dishes`, plus `updated_at`, `updated_by` | app only |
 
 `engine/data.js` (`mergeData`) merges them into the single object described here.
 While `plans.json` does not exist yet, `plans` is read from `family-data.json`, where
@@ -173,4 +173,22 @@ replaces the catalog's (lists and `nutrition` as a whole); `null` removes it.
 Editable: `name`, `course`, `allergens`, `ingredients`, `nutrition`,
 `prep_minutes`, `notes`, `verified`, `cookable_at_home`, `tags`. Read the catalog
 with the edits applied (`engine/data.js` `mergeData`); edits of dishes no longer
-in the catalog are ignored.
+in the catalog are ignored. School dishes (`source.type: school`) take no
+edits: the app shows them read-only (`422 not_editable`).
+
+`dishes` holds the recipes created in the app, for now variants of an
+existing dish ("Crea variante"):
+
+```json
+"dishes": [{ "id": "frittata-con-zucchine", "name": "Frittata con zucchine", "course": "second",
+  "ingredients": [{ "name": "uova", "aisle": "dairy" }, { "name": "zucchine", "aisle": "produce" }],
+  "nutrition": { … }, "allergens": ["eggs"], "based_on": "frittata",
+  "created_by": "…", "created_at": "…", "updated_by": "…", "updated_at": "…" }]
+```
+
+Same fields as a catalog dish (the editable ones), with the id made by the
+script from the name and unique among catalog and app dishes. `mergeData`
+appends them to the catalog's dishes with `source: {type: personal, ref: "app"
+or "app variant:<based_on>"}` and `app: true`; one whose id the catalog
+already uses is ignored. A recipe used in a saved plan cannot be removed
+(`409 in_use`).

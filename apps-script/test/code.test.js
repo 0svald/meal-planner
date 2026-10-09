@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { loadScript, token } from './fake-google.js'
 
-const catalog = { schema_version: '1.0', dishes: [{ id: 'pasta' }, { id: 'pollo' }, { id: 'insalata' }], school_menus: [] }
+const catalog = { schema_version: '1.0', dishes: [{ id: 'pasta' }, { id: 'pollo' }, { id: 'insalata' }, { id: 'minestra', name: 'Minestra', source: { type: 'school' } }], school_menus: [] }
 const family = { schema_version: '1.0', family: {}, rules: [], pantry: [] }
 const tokens = { MAMMA: token('mamma@example.com'), PAPA: token('papa@example.com'), ZIO: token('zio@example.com') }
 
@@ -308,4 +308,52 @@ test('Gmail addresses match ignoring dots, "+" suffixes, case and googlemail.com
   const out = s.post({ id_token: 'MAMMA', action: 'removeMember', email: 'mariorossi@gmail.com' })
   assert.equal(out.ok, true)
   assert.equal(s.get({ resource: 'all', id_token: 'MARIO' }).status, 403)
+})
+
+test('school dishes take no edits: a variant becomes a new recipe in dish-edits.json', () => {
+  const s = setup()
+  const edit = s.post({ id_token: 'MAMMA', action: 'saveDishEdit', dish_id: 'minestra', fields: { name: 'x' } })
+  assert.equal(edit.error, 'not_editable')
+  const fields = { name: 'Minestra di Casa', course: 'first', ingredients: [{ name: 'verdure', aisle: 'produce' }], nutrition: { carbs: [], proteins: [], vegetables: { present: true, form: 'cooked' }, confidence: 'medium' } }
+  const a = s.post({ id_token: 'PAPA', action: 'saveDish', based_on: 'minestra', fields })
+  assert.equal(a.ok, true, JSON.stringify(a))
+  assert.equal(a.dish_id, 'minestra-di-casa')
+  const d = a.data.dishes[0]
+  assert.equal(d.based_on, 'minestra')
+  assert.equal(d.created_by, 'papa@example.com')
+  // same name again: a new id
+  const b = s.post({ id_token: 'PAPA', action: 'saveDish', based_on: 'minestra', fields })
+  assert.equal(b.dish_id, 'minestra-di-casa-2')
+  // a name clashing with a catalog id
+  assert.equal(s.post({ id_token: 'PAPA', action: 'saveDish', fields: { name: 'Pasta', course: 'first' } }).dish_id, 'pasta-2')
+  // change it: only the given fields, prep removed with null
+  const c = s.post({ id_token: 'MAMMA', action: 'saveDish', dish_id: 'minestra-di-casa', fields: { name: 'Minestra della nonna', prep_minutes: null } })
+  assert.equal(c.data.dishes[0].name, 'Minestra della nonna')
+  assert.equal(c.data.dishes[0].updated_by, 'mamma@example.com')
+  assert.deepEqual(c.data.dishes[0].ingredients, fields.ingredients)
+  // edits of catalog dishes and app recipes live side by side
+  const e = s.post({ id_token: 'MAMMA', action: 'saveDishEdit', dish_id: 'pasta', fields: { prep_minutes: 15 } })
+  assert.equal(e.data.dishes.length, 3)
+  assert.equal(e.data.edits.pasta.fields.prep_minutes, 15)
+  // a plan may use an app recipe
+  const plan = { id: '2026-w41', week_start: '2026-10-05', status: 'draft', meals: [{ date: '2026-10-05', slot: 'dinner', dish_ids: ['minestra-di-casa'] }] }
+  assert.equal(s.post({ id_token: 'MAMMA', action: 'savePlan', plan, base_updated_at: null }).ok, true)
+  // ...and then it cannot be removed
+  const r = s.post({ id_token: 'MAMMA', action: 'removeDish', dish_id: 'minestra-di-casa' })
+  assert.equal(r.error, 'in_use')
+  assert.deepEqual(r.weeks, ['2026-10-05'])
+  const ok = s.post({ id_token: 'MAMMA', action: 'removeDish', dish_id: 'minestra-di-casa-2' })
+  assert.equal(ok.ok, true)
+  assert.deepEqual(ok.data.dishes.map(x => x.id), ['minestra-di-casa', 'pasta-2'])
+  assert.equal(s.post({ id_token: 'MAMMA', action: 'removeDish', dish_id: 'pasta' }).status, 404, 'catalog dishes cannot be removed')
+  assert.equal(JSON.parse(s.drive.files.find(f => f.name === 'catalog.json').content).dishes.length, 4, 'catalog untouched')
+})
+
+test('saveDish checks its input', () => {
+  const s = setup()
+  const save = body => s.post({ id_token: 'MAMMA', action: 'saveDish', ...body })
+  assert.equal(save({ fields: { name: 'Senza tipo' } }).error, 'invalid_dish')
+  assert.equal(save({ fields: { name: 'X', course: 'brunch' } }).error, 'invalid_dish')
+  assert.equal(save({ based_on: 'ghost', fields: { name: 'X', course: 'first' } }).status, 404)
+  assert.equal(save({ dish_id: 'ghost', fields: { name: 'X' } }).status, 404)
 })

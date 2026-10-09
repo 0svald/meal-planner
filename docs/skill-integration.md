@@ -8,7 +8,7 @@ The app now owns three files in `family-meal-planner/` that the skill must
 | `plans.json` | the weekly plans (`plans`) | variety history; shopping lists in chat |
 | `pantry.json` | the pantry staples (`pantry`) | replaces `family-data.json`'s `pantry` once it exists |
 | `wishlist.json` | recipes the family wants added (`wishes`) | the "load the wishlist" task below |
-| `dish-edits.json` | the family's corrections to catalog dishes (`edits`) | apply them on top of `catalog.json` whenever dishes are read |
+| `dish-edits.json` | the family's corrections to catalog dishes (`edits`) and the recipes created in the app (`dishes`) | apply the edits on top of `catalog.json` and add the app's recipes whenever dishes are read |
 
 The text below is meant to be added to the skill's `SKILL.md` (for example with
 the skill-creator), in the skill's own style. It is not loaded by the app.
@@ -34,6 +34,11 @@ them.
   app edit keeps winning until someone taps "Ripristina originale". You may fold
   an edit into `catalog.json` when saving it (same values), but never remove the
   edit yourself.
+- **Recipes made in the app**: `dish-edits.json` `dishes` are new personal
+  dishes (variants carry `based_on`). Treat them as part of the catalog: plans
+  may use their ids, the rules apply to them, and a new dish must not reuse
+  their ids. To move one into `catalog.json` (e.g. to classify it better), save
+  it there with the **same id**: from then on the app ignores its own copy.
 
 ## Loading the recipe wishlist
 

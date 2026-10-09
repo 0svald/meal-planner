@@ -59,6 +59,8 @@ function doGet(e) {
 //   {id_token, action: 'removeWish', id}
 //   {id_token, action: 'saveDishEdit', dish_id, fields}
 //   {id_token, action: 'resetDishEdit', dish_id}
+//   {id_token, action: 'saveDish', dish_id?, based_on?, fields}
+//   {id_token, action: 'removeDish', dish_id}
 //   {id_token, action: 'listMembers'}                          (admin only)
 //   {id_token, action: 'inviteMember', email, app_url, endpoint} (admin only)
 //   {id_token, action: 'removeMember', email}                  (admin only)
@@ -81,6 +83,8 @@ function doPost(e) {
     if (body.action === 'removeWish') return json_(removeWish_(body.id, email));
     if (body.action === 'saveDishEdit') return json_(saveDishEdit_(body.dish_id, body.fields, email));
     if (body.action === 'resetDishEdit') return json_(resetDishEdit_(body.dish_id, email));
+    if (body.action === 'saveDish') return json_(saveDish_(body, email));
+    if (body.action === 'removeDish') return json_(removeDish_(body.dish_id, email));
     if (body.action === 'listMembers') return json_(listMembers_(email));
     if (body.action === 'inviteMember') return json_(inviteMember_(body, email));
     if (body.action === 'removeMember') return json_(removeMember_(body.email, email));
@@ -245,23 +249,43 @@ function validateDishFields_(fields) {
   if (problems.length) throw apiError_(422, 'invalid_dish', problems.join('; '));
 }
 
-function requireDish_(dishId) {
-  var dishes = readResource_('catalog').data.dishes || [];
-  if (typeof dishId !== 'string' || !dishes.some(function (d) { return d.id === dishId; })) {
-    throw apiError_(404, 'not_found', 'No dish with this id in the catalog');
-  }
+function catalogDishes_() {
+  return readResource_('catalog').data.dishes || [];
 }
 
+function appDishes_() {
+  var current = readResource_('edits').data;
+  return current && Array.isArray(current.dishes) ? current.dishes : [];
+}
+
+// Only the catalog's personal and takeaway dishes take edits: school dishes
+// are the canteen's (a variant makes a new recipe instead), and recipes made
+// in the app are changed with saveDish.
+function requireDish_(dishId) {
+  var dish = typeof dishId === 'string' && catalogDishes_().filter(function (d) { return d.id === dishId; })[0];
+  if (!dish) throw apiError_(404, 'not_found', 'No dish with this id in the catalog');
+  if ((dish.source || {}).type === 'school') throw apiError_(422, 'not_editable', 'School canteen dishes cannot be changed: make a variant');
+}
+
+// dish-edits.json: {edits: {[catalog dish id]: {fields, edited_by, edited_at}},
+// dishes: [recipes created in the app]}. Changes are applied under the lock to
+// the current file, so two people editing different dishes keep both changes.
 function changeEdits_(email, change) {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) throw apiError_(503, 'busy', 'Another save is in progress, retry');
   try {
-    var current = readResource_('edits').data;
-    var edits = change(current && current.edits ? JSON.parse(JSON.stringify(current.edits)) : {});
+    var current = readResource_('edits').data || {};
+    var doc = {
+      edits: current.edits ? JSON.parse(JSON.stringify(current.edits)) : {},
+      dishes: Array.isArray(current.dishes) ? JSON.parse(JSON.stringify(current.dishes)) : []
+    };
+    var result = change(doc) || {};
     var now = new Date().toISOString();
-    var data = { schema_version: '1.0', updated_at: now, updated_by: email, edits: edits };
+    var data = { schema_version: '1.0', updated_at: now, updated_by: email, edits: doc.edits, dishes: doc.dishes };
     writeAppFile_('edits', data);
-    return { ok: true, email: email, data: data, updated_at: now };
+    var out = { ok: true, email: email, data: data, updated_at: now };
+    Object.keys(result).forEach(function (k) { out[k] = result[k]; });
+    return out;
   } finally {
     lock.releaseLock();
   }
@@ -270,21 +294,87 @@ function changeEdits_(email, change) {
 function saveDishEdit_(dishId, fields, email) {
   requireDish_(dishId);
   validateDishFields_(fields);
-  var out = changeEdits_(email, function (edits) {
-    edits[dishId] = { fields: fields, edited_by: email, edited_at: new Date().toISOString() };
-    return edits;
+  var out = changeEdits_(email, function (doc) {
+    doc.edits[dishId] = { fields: fields, edited_by: email, edited_at: new Date().toISOString() };
   });
   out.action = 'saveDishEdit';
   return out;
 }
 
 function resetDishEdit_(dishId, email) {
-  var out = changeEdits_(email, function (edits) {
-    if (!edits[dishId]) throw apiError_(404, 'not_found', 'This dish has no edit');
-    delete edits[dishId];
-    return edits;
+  var out = changeEdits_(email, function (doc) {
+    if (!doc.edits[dishId]) throw apiError_(404, 'not_found', 'This dish has no edit');
+    delete doc.edits[dishId];
   });
   out.action = 'resetDishEdit';
+  return out;
+}
+
+// An id from the name: lower case, no accents, words joined by "-", unique
+// among the catalog's and the app's dishes.
+function dishIdFor_(name, taken) {
+  var base = String(name).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50) || 'ricetta';
+  var id = base;
+  for (var n = 2; taken[id]; n++) id = base + '-' + n;
+  return id;
+}
+
+// A new recipe (from scratch, or a variant of `based_on`), or a change to a
+// recipe made in the app (`dish_id`). Catalog dishes are never touched.
+function saveDish_(body, email) {
+  var fields = body.fields;
+  validateDishFields_(fields);
+  var catalog = catalogDishes_();
+  var catalogIds = {};
+  catalog.forEach(function (d) { catalogIds[d.id] = true; });
+  var out = changeEdits_(email, function (doc) {
+    var now = new Date().toISOString();
+    if (body.dish_id) {
+      var dish = doc.dishes.filter(function (d) { return d.id === body.dish_id; })[0];
+      if (!dish) throw apiError_(404, 'not_found', 'No recipe with this id made in the app');
+      Object.keys(fields).forEach(function (k) {
+        if (fields[k] === null) delete dish[k];
+        else dish[k] = fields[k];
+      });
+      dish.updated_by = email;
+      dish.updated_at = now;
+      return { dish_id: dish.id };
+    }
+    if (!fields.name || !fields.course) throw apiError_(422, 'invalid_dish', 'name and course are required');
+    var taken = {};
+    Object.keys(catalogIds).forEach(function (id) { taken[id] = true; });
+    doc.dishes.forEach(function (d) { taken[d.id] = true; });
+    if (body.based_on && !taken[body.based_on]) throw apiError_(404, 'not_found', 'based_on: no such dish');
+    var created = { id: dishIdFor_(fields.name, taken) };
+    Object.keys(fields).forEach(function (k) { if (fields[k] !== null) created[k] = fields[k]; });
+    if (body.based_on) created.based_on = body.based_on;
+    created.created_by = email;
+    created.created_at = now;
+    doc.dishes.push(created);
+    return { dish_id: created.id };
+  });
+  out.action = 'saveDish';
+  return out;
+}
+
+// Removing a recipe still used in a saved week would leave a hole in it.
+function removeDish_(dishId, email) {
+  var plans = readResource_('plans').data.plans || [];
+  var weeks = plans.filter(function (p) {
+    return (p.meals || []).some(function (m) { return (m.dish_ids || []).indexOf(dishId) !== -1; });
+  }).map(function (p) { return p.week_start; });
+  if (weeks.length) {
+    var err = apiError_(409, 'in_use', 'The recipe is used in saved weeks');
+    err.extra = { weeks: weeks };
+    throw err;
+  }
+  var out = changeEdits_(email, function (doc) {
+    var before = doc.dishes.length;
+    doc.dishes = doc.dishes.filter(function (d) { return d.id !== dishId; });
+    if (doc.dishes.length === before) throw apiError_(404, 'not_found', 'No recipe with this id made in the app');
+  });
+  out.action = 'removeDish';
   return out;
 }
 
@@ -460,9 +550,8 @@ function archiveFolder_(folder) {
 // --- plans -----------------------------------------------------------------
 
 function savePlan_(plan, baseUpdatedAt, email) {
-  var catalog = readResource_('catalog').data;
   var dishIds = {};
-  (catalog.dishes || []).forEach(function (d) { dishIds[d.id] = true; });
+  catalogDishes_().concat(appDishes_()).forEach(function (d) { dishIds[d.id] = true; });
   var clean = validatePlan_(plan, dishIds);
 
   var lock = LockService.getScriptLock();

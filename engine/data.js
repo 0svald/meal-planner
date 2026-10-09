@@ -62,7 +62,7 @@ export function mergeData ({ catalog = {}, family = {}, plans = null, pantry = n
   return applyDefaults({
     schema_version: catalog.schema_version || family.schema_version || SCHEMA_VERSION,
     family: family.family || {},
-    dishes: applyDishEdits(catalog.dishes || [], edits && edits.edits),
+    dishes: withAppDishes(applyDishEdits(catalog.dishes || [], edits && edits.edits), edits && edits.dishes),
     school_menus: catalog.school_menus || [],
     rules: family.rules || [],
     plans: planList || [],
@@ -97,6 +97,30 @@ export function applyDishEdits (dishes, edits) {
     out.edited = { by: edit.edited_by || null, at: edit.edited_at || null }
     return out
   })
+}
+
+// Recipes created in the app (new ones, or variants of a dish), kept in
+// dish-edits.json as `dishes: [{id, ...fields, based_on?, created_by,
+// created_at, updated_by?, updated_at?}]`. They join the catalog dishes as
+// personal recipes, marked `app: true`; one whose id the catalog already uses
+// is ignored (the skill may have taken it over).
+export function withAppDishes (dishes, appDishes) {
+  if (!Array.isArray(appDishes) || !appDishes.length) return dishes
+  const ids = new Set(dishes.map(d => d.id))
+  const extra = appDishes.filter(d => d && d.id && !ids.has(d.id)).map(d => {
+    const out = { ...d, source: { type: 'personal', ref: d.based_on ? `app variant:${d.based_on}` : 'app' }, app: true }
+    out.created = { by: d.created_by || null, at: d.created_at || null }
+    if (d.updated_at) out.edited = { by: d.updated_by || null, at: d.updated_at }
+    for (const key of ['created_by', 'created_at', 'updated_by', 'updated_at']) delete out[key]
+    return out
+  })
+  return [...dishes, ...extra]
+}
+
+// The catalog's school dishes are the canteen's: the app shows them but does
+// not change them (a variant becomes a new personal recipe instead).
+export function isDishEditable (dish) {
+  return Boolean(dish) && (dish.source || {}).type !== 'school'
 }
 
 // Fill the keys the skill omits when they hold their default value.
