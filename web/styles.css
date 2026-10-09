@@ -760,3 +760,5 @@ body.tab-today main { touch-action: pan-y; }
 .dish-view dt { color: var(--muted); font-size: 0.9rem; }
 .dish-view dd { margin: 0; }
 button.danger { color: var(--error); border-color: var(--error); }
+.wish-box { margin: 4px 0 12px; padding: 10px; border: 1px solid var(--border); border-radius: 12px; }
+.wish-box p { margin: 0; }

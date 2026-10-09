@@ -59,8 +59,9 @@ whenever the family mentions the wishlist.
      if the recipe states them, `prep_minutes`, classification, `verified: false`.
 4. Show the family what will change and wait for "salva", as for every save.
    Validate, then save `catalog.json` (new copy + archive the old one).
-5. Do not edit `wishlist.json`: the app shows a wish as "nel catalogo" as soon as
-   a dish refers to it. The family removes wishes from the app.
+5. Do not edit `wishlist.json`: a wish counts as done as soon as a dish refers
+   to it (`wish:<id>`). The app no longer lists the wishes, it only collects them
+   (Ricette → +).
 
 Several wishes can point to one dish: `source.ref` may hold
 `"wish:w-20261004-ab12cd, wish:w-20261005-ef34ab"`.
