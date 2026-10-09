@@ -21,7 +21,7 @@ const COURSE_LABELS = {
   takeaway: 'Asporto'
 }
 // Shown in the settings, to tell which version a phone runs. Bump on release.
-const APP_VERSION = '2026-10-12'
+const APP_VERSION = '2026-10-13'
 const MINOR_COURSES = new Set(['bread', 'fruit', 'dessert'])
 const DAY_NAMES = {
   mon: 'Lunedì', tue: 'Martedì', wed: 'Mercoledì', thu: 'Giovedì', fri: 'Venerdì', sat: 'Sabato', sun: 'Domenica'
@@ -1230,11 +1230,34 @@ async function inviteMember (event) {
   if (body.ok) {
     form.email.value = ''
     renderMembers(body.members)
-    showStatus(`Invito mandato a ${body.invited}: ha già accesso, deve solo aprire il link della mail.`, 'info')
+    showStatus(`Invito mandato a ${body.invited}: ha già accesso. Se la mail non arriva, ` +
+      'può essere nello spam: in quel caso mandagli il link con «Condividi il link».', 'info')
   } else if (body.error === 'invalid_member') {
     showStatus(`Controlla l'indirizzo: ${body.message}`, 'error')
   } else {
     showStatus(messageFor(body), 'error')
+  }
+}
+
+// Share the invitation link by hand (WhatsApp, SMS…): mail sent by the
+// script to a new contact may land in spam.
+async function shareInvite () {
+  const url = api.inviteLink()
+  if (!url) return
+  const text = 'Ti ho aggiunto al Menu di famiglia. Apri il link dal telefono e accedi con il tuo account Google:'
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: 'Menu di famiglia', text, url })
+      return
+    }
+  } catch (err) {
+    if (err && err.name === 'AbortError') return
+  }
+  try {
+    await navigator.clipboard.writeText(`${text} ${url}`)
+    showStatus('Link copiato: incollalo in un messaggio. Funziona solo per gli account invitati.', 'info')
+  } catch {
+    prompt('Copia il link d\'invito:', url)
   }
 }
 
@@ -1357,6 +1380,7 @@ function main () {
   $('#update-btn').addEventListener('click', updateApp)
   $('#settings-close').addEventListener('click', () => $('#settings').close())
   $('#invite-form').addEventListener('submit', inviteMember)
+  $('#share-invite').addEventListener('click', shareInvite)
   $('#advanced-form').addEventListener('submit', saveAdvanced)
   $('#signout-btn').addEventListener('click', async () => {
     $('#settings').close()

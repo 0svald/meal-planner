@@ -244,6 +244,15 @@ export async function listMembers () {
   return post({ action: 'listMembers' })
 }
 
+// The invitation link, the same for everyone (access still needs the account
+// in the allowlist): the app can share it by hand when the mail ends in spam.
+export function inviteLink () {
+  const endpoint = config().endpoint || (DEMO ? 'https://script.google.com/macros/s/DEMO/exec' : '')
+  if (!endpoint) return null
+  const code = btoa(endpoint).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  return `${location.origin}${location.pathname}#invito=${code}`
+}
+
 export async function inviteMember (email) {
   if (DEMO) return demo.invite(email)
   const appUrl = location.origin + location.pathname

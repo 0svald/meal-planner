@@ -189,6 +189,10 @@ Family management, owner and `ADMINS` only (`403 not_admin` otherwise):
   to `ALLOWED` and mails it a link `app_url#invito=<base64url(endpoint)>`;
   inviting again resends the mail; `app_url` must be https, `endpoint` the
   `/exec` URL (`422 invalid_member`);
+  the answer carries the same `link`. The mail is plain text plus a plain
+  link, with `replyTo` the inviter; if it lands in spam, the app shares the
+  link by hand (⚙︎ → Famiglia → «Condividi il link»): it only works for
+  accounts in `ALLOWED`;
 - `{"action": "removeMember", "email"}` removes it at once (the owner cannot be
   removed; `404` if not listed).
 
