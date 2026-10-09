@@ -20,6 +20,8 @@ const COURSE_LABELS = {
   dessert: 'Dolce',
   takeaway: 'Asporto'
 }
+// Shown in the settings, to tell which version a phone runs. Bump on release.
+const APP_VERSION = '2026-10-09.2'
 const MINOR_COURSES = new Set(['bread', 'fruit', 'dessert'])
 const DAY_NAMES = {
   mon: 'Lunedì', tue: 'Martedì', wed: 'Mercoledì', thu: 'Giovedì', fri: 'Venerdì', sat: 'Sabato', sun: 'Domenica'
@@ -39,6 +41,7 @@ const state = {
   drafts: readJSON(STORE.drafts) || {},
   sheet: null,
   sharePrefill: null,
+  admin: false,
   slide: null,
   tab: ['plan', 'shopping', 'wishes'].includes(readJSON(STORE.tab)) ? readJSON(STORE.tab) : 'today',
   day: null
@@ -86,7 +89,8 @@ function showOffline () {
 function messageFor (body) {
   switch (body.error) {
     case 'not_configured':
-      return 'Per iniziare, inserisci l\'indirizzo del servizio e il Client ID nelle impostazioni (⚙︎).'
+      return 'Per entrare apri il link d\'invito che hai ricevuto per email. ' +
+        'Se sei il proprietario: ⚙︎ → Avanzate, e incolla l\'indirizzo dello script.'
     case 'bad_endpoint':
       return 'L\'indirizzo del servizio deve iniziare con https://script.google.com/ e finire con /exec (⚙︎).'
     case 'offline':
@@ -120,6 +124,7 @@ function setData (cache) {
   state.plansUpdatedAt = (r.plans.data && r.plans.data.updated_at) || null
   state.fetchedAt = cache.fetchedAt
   state.email = cache.email || null
+  state.admin = cache.admin === true
   // Weeks without local edits follow what is saved on Drive.
   for (const [week, draft] of Object.entries(state.drafts)) {
     if (!draft.dirty) delete state.drafts[week]
@@ -138,7 +143,7 @@ function savedPlan (weekStart) {
 async function refresh ({ retried = false } = {}) {
   const body = await api.loadAll()
   if (body.ok) {
-    const cache = { resources: body.resources, email: body.email, fetchedAt: new Date().toISOString() }
+    const cache = { resources: body.resources, email: body.email, admin: body.admin === true, fetchedAt: new Date().toISOString() }
     if (!api.DEMO) writeJSON(STORE.cache, cache)
     setData(cache)
     if (api.DEMO) showStatus('Modalità demo: dati di esempio, non quelli di famiglia. I salvataggi restano in questa pagina.', 'info')
@@ -380,6 +385,7 @@ function render () {
 
 function renderView () {
   if (!state.data) return
+  document.body.classList.toggle('tab-today', state.tab === 'today')
   $('#week').hidden = false
   $('#bottom-nav').hidden = false
   for (const tab of TABS) {
@@ -486,10 +492,13 @@ function moveDay (delta) {
 const SWIPE_MIN_PX = 60
 const SWIPE_MAX_MS = 1000
 
+// The whole page area counts (also the empty space under the cards), except
+// the bottom bar, form fields and open dialogs.
 function setupSwipe (target) {
   let start = null
   target.addEventListener('touchstart', event => {
-    if (event.touches.length !== 1 || document.querySelector('dialog[open]')) {
+    const ignore = event.target.closest && event.target.closest('.bottom-nav, dialog, input, textarea, select')
+    if (state.tab !== 'today' || event.touches.length !== 1 || ignore || document.querySelector('dialog[open]')) {
       start = null
       return
     }
@@ -938,22 +947,89 @@ function openSheet (key, limit = 3) {
 // --- settings ----------------------------------------------------------------
 
 function openSettings () {
-  const form = $('#settings-form')
-  const cfg = api.config()
-  form.endpoint.value = cfg.endpoint || ''
-  form.clientId.value = cfg.clientId || ''
-  $('#settings-account').textContent = state.email ? `Accesso come ${state.email}` : ''
+  $('#advanced-form').endpoint.value = api.config().endpoint || ''
+  $('#settings-account').textContent = state.email ? `Accesso come ${state.email}` : 'Non hai ancora fatto l\'accesso.'
+  $('#app-version').textContent = `Versione dell'app: ${APP_VERSION}`
+  $('#family-box').hidden = !state.admin
+  $('#advanced').open = !api.config().endpoint
+  if (state.admin) loadMembers()
+  applyOnlineState()
   $('#settings').showModal()
 }
 
-function onSettingsClose () {
-  if ($('#settings').returnValue !== 'save') return
-  const form = $('#settings-form')
-  const before = api.config()
-  const next = { endpoint: form.endpoint.value.trim(), clientId: form.clientId.value.trim() }
-  writeJSON(STORE.config, next)
-  if (next.clientId !== before.clientId) api.forgetToken()
-  if (next.endpoint !== before.endpoint || next.clientId !== before.clientId) refresh()
+// --- family (owner only) -------------------------------------------------------
+
+function renderMembers (members) {
+  $('#members').replaceChildren(...members.map(m => el('li', {},
+    el('span', { class: 'member-email' }, m.email),
+    m.owner
+      ? el('span', { class: 'badge' }, 'proprietario')
+      : el('button', {
+        type: 'button',
+        class: 'link-btn',
+        'data-write': true,
+        onclick: async () => {
+          if (!confirm(`Togliere l'accesso a ${m.email}?`)) return
+          const body = await api.removeMember(m.email)
+          if (body.ok) {
+            renderMembers(body.members)
+            showStatus(`${m.email} non ha più accesso.`, 'info')
+          } else {
+            showStatus(messageFor(body), 'error')
+          }
+        }
+      }, 'Togli'))))
+  applyOnlineState()
+}
+
+async function loadMembers () {
+  $('#members').replaceChildren(el('li', { class: 'muted small' }, 'Carico…'))
+  const body = await api.listMembers()
+  if (body.ok) renderMembers(body.members)
+  else $('#members').replaceChildren(el('li', { class: 'muted small' }, messageFor(body)))
+}
+
+async function inviteMember (event) {
+  event.preventDefault()
+  const form = $('#invite-form')
+  const email = form.email.value.trim()
+  if (!email) return
+  const button = form.querySelector('button')
+  button.disabled = true
+  const body = await api.inviteMember(email)
+  button.disabled = false
+  if (body.ok) {
+    form.email.value = ''
+    renderMembers(body.members)
+    showStatus(`Invito mandato a ${body.invited}: ha già accesso, deve solo aprire il link della mail.`, 'info')
+  } else if (body.error === 'invalid_member') {
+    showStatus(`Controlla l'indirizzo: ${body.message}`, 'error')
+  } else {
+    showStatus(messageFor(body), 'error')
+  }
+}
+
+function saveAdvanced (event) {
+  event.preventDefault()
+  const endpoint = $('#advanced-form').endpoint.value.trim()
+  if (endpoint === (api.config().endpoint || '')) return
+  api.setEndpoint(endpoint)
+  $('#settings').close()
+  refresh()
+}
+
+// Drop the offline copy of the app and load the latest published version.
+// Data and unsaved edits in localStorage are kept.
+async function updateApp () {
+  showStatus('Scarico l\'ultima versione…', 'info')
+  try {
+    if ('caches' in window) for (const key of await caches.keys()) await caches.delete(key)
+    const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null
+    if (reg) await reg.update()
+  } catch {
+    // Reloading is enough when the cache cannot be cleared.
+  }
+  location.reload()
 }
 
 // --- start -------------------------------------------------------------------
@@ -1043,13 +1119,16 @@ function main () {
     moveWeek(0)
   })
   for (const tab of TABS) $(`#nav-${tab}`).addEventListener('click', () => showTab(tab))
-  setupSwipe($('#today-view'))
+  setupSwipe(document)
   $('#save-btn').addEventListener('click', () => save('draft'))
   $('#confirm-btn').addEventListener('click', () => save('confirmed'))
   $('#propose-btn').addEventListener('click', newProposal)
   $('#discard-btn').addEventListener('click', discardChanges)
   $('#settings-btn').addEventListener('click', openSettings)
-  $('#settings').addEventListener('close', onSettingsClose)
+  $('#update-btn').addEventListener('click', updateApp)
+  $('#settings-close').addEventListener('click', () => $('#settings').close())
+  $('#invite-form').addEventListener('submit', inviteMember)
+  $('#advanced-form').addEventListener('submit', saveAdvanced)
   $('#signout-btn').addEventListener('click', async () => {
     $('#settings').close()
     await api.signOut()
@@ -1060,9 +1139,14 @@ function main () {
   })
 
   if (api.DEMO) {
-    $('#settings-btn').hidden = true
     refresh()
     return
+  }
+
+  if (api.readInvite()) {
+    // A fresh invitation replaces whatever was cached for another address.
+    writeJSON(STORE.cache, null)
+    showStatus('Benvenuto! Accedi con l\'account Google a cui è arrivato l\'invito.', 'info')
   }
 
   const cached = readJSON(STORE.cache)

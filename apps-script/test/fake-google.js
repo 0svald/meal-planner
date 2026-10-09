@@ -54,17 +54,21 @@ function iterator (list) {
 }
 
 // tokens: { tokenString: claims }
-export function loadScript ({ files = {}, allowed = 'mamma@example.com,papa@example.com', tokens = {} } = {}) {
+export function loadScript ({ files = {}, allowed = 'mamma@example.com,papa@example.com', tokens = {}, owner = 'mamma@example.com', admins = '' } = {}) {
   const drive = { files: [], folders: [] }
   const root = new FakeFolder(drive, 'family-meal-planner')
   drive.folders.push(root)
   for (const [name, obj] of Object.entries(files)) root.createFile(name, JSON.stringify(obj))
-  const props = { FOLDER_ID: 'root-id', ALLOWED: allowed, CLIENT_ID: 'client-id' }
+  const props = { FOLDER_ID: 'root-id', ALLOWED: allowed, CLIENT_ID: 'client-id', ADMINS: admins }
+  const mail = []
   const cache = new Map()
 
   const sandbox = {
     console: { log () {}, error () {} },
-    PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] || null }) },
+    PropertiesService: {
+      getScriptProperties: () => ({ getProperty: k => props[k] || null, setProperty: (k, v) => { props[k] = v } })
+    },
+    MailApp: { sendEmail: message => mail.push(message), getRemainingDailyQuota: () => 100 },
     CacheService: { getScriptCache: () => ({ get: k => cache.get(k) || null, put: (k, v) => cache.set(k, v) }) },
     UrlFetchApp: {
       fetch (url) {
@@ -85,9 +89,10 @@ export function loadScript ({ files = {}, allowed = 'mamma@example.com,papa@exam
       formatDate: (d, tz, fmt) => fmt === 'yyyyMMdd'
         ? d.toISOString().slice(0, 10).replace(/-/g, '')
         : d.toISOString().slice(0, 16).replace(/-/g, '').replace('T', '-').replace(':', ''),
-      getUuid: () => randomUUID()
+      getUuid: () => randomUUID(),
+      base64EncodeWebSafe: text => Buffer.from(text).toString('base64').replace(/\+/g, '-').replace(/\//g, '_')
     },
-    Session: { getScriptTimeZone: () => 'UTC' },
+    Session: { getScriptTimeZone: () => 'UTC', getEffectiveUser: () => ({ getEmail: () => owner }) },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock () {} }) }
   }
   vm.createContext(sandbox)
@@ -101,6 +106,8 @@ export function loadScript ({ files = {}, allowed = 'mamma@example.com,papa@exam
     get: params => call('doGet', { parameter: params }),
     post: body => call('doPost', { postData: { contents: typeof body === 'string' ? body : JSON.stringify(body) } }),
     fileNames: folder => (folder || root).files().map(f => f.name).sort(),
+    props,
+    mail,
     archive: () => drive.folders.find(f => f.name === 'archive')
   }
 }

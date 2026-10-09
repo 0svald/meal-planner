@@ -80,8 +80,13 @@ Schema essentials:
 
 - Deploy: execute as the **owner**, access **anyone**. Every call carries a Google
   ID token (Google Identity Services sign-in in the page); the script verifies it
-  and checks the email against an allowlist kept in Script Properties — never
-  hardcode emails in the repo. `Session.getActiveUser()` is not usable: it returns
+  and checks the email against an allowlist kept in Script Properties (`ALLOWED`,
+  managed from the app by the owner, who is always allowed) — never hardcode
+  emails in the repo.
+- Nobody types configuration: the owner invites from Settings → Famiglia, the
+  script mails a link with the `/exec` address in the URL fragment
+  (`#invito=<base64url>`, never sent to GitHub), and the OAuth client id is
+  served by the script (`?resource=config`, the only unauthenticated call). `Session.getActiveUser()` is not usable: it returns
   an empty email for other gmail.com accounts, and "anyone with a Google account"
   needs third-party cookies that Safari blocks (see `apps-script/README.md`).
 - **POST bodies must be sent as `text/plain`**. Any JSON content type triggers a
@@ -102,10 +107,9 @@ Schema essentials:
   without network access.
 - Commit messages in English, imperative mood.
 - Never commit real family data, emails, Drive ids or deployment URLs. Those live
-  in Script Properties and in `web/config.js` (git-ignored, with a
-  `config.example.js` checked in). On GitHub Pages `config.js` does not exist:
-  the endpoint URL and OAuth client id are entered once in the app's settings
-  and kept in the browser's `localStorage`.
+  in Script Properties, in the invitation links and in the browser's
+  `localStorage`; `web/config.js` (git-ignored, `config.example.js` checked in)
+  is only for local development.
 
 ## What NOT to do
 

@@ -175,3 +175,69 @@ test('addWish refuses bad input', () => {
   assert.equal(s.post({ id_token: 'MAMMA', action: 'addWish', name: 'x', note: 42 }).error, 'invalid_wish')
   assert.equal(s.post({ id_token: 'ZIO', action: 'addWish', name: 'x' }).status, 403)
 })
+
+const EXEC = 'https://script.google.com/macros/s/AKfyTEST/exec'
+const APP = 'https://0svald.github.io/meal-planner/web/'
+
+test('config is public and only gives the client id', () => {
+  const out = setup().get({ resource: 'config' })
+  assert.deepEqual(out, { ok: true, resource: 'config', client_id: 'client-id' })
+})
+
+test('the owner is always allowed and is admin; others are not admin', () => {
+  const s = loadScript({ files: { 'catalog.json': catalog, 'family-data.json': family }, tokens, allowed: 'papa@example.com' })
+  const mamma = s.get({ resource: 'all', id_token: 'MAMMA' })
+  assert.equal(mamma.ok, true, 'owner allowed even if not listed')
+  assert.equal(mamma.admin, true)
+  assert.equal(s.get({ resource: 'all', id_token: 'PAPA' }).admin, false)
+  assert.equal(s.post({ id_token: 'PAPA', action: 'listMembers' }).error, 'not_admin')
+  const list = s.post({ id_token: 'MAMMA', action: 'listMembers' })
+  assert.deepEqual(list.members.map(m => [m.email, m.owner]), [['mamma@example.com', true], ['papa@example.com', false]])
+})
+
+test('inviteMember adds to the allowlist and mails a link with the endpoint in the fragment', () => {
+  const s = setup()
+  assert.equal(s.get({ resource: 'all', id_token: 'ZIO' }).status, 403)
+  const out = s.post({ id_token: 'MAMMA', action: 'inviteMember', email: ' Zio@Example.com ', app_url: APP, endpoint: EXEC })
+  assert.equal(out.ok, true, JSON.stringify(out))
+  assert.equal(out.invited, 'zio@example.com')
+  assert.equal(s.props.ALLOWED, 'papa@example.com,zio@example.com', 'the owner is implicit, not stored')
+  assert.equal(s.get({ resource: 'all', id_token: 'ZIO' }).ok, true, 'access works at once')
+  assert.equal(s.mail.length, 1)
+  const m = s.mail[0]
+  assert.equal(m.to, 'zio@example.com')
+  const link = m.body.match(/https:\/\/\S+#invito=\S+/)[0]
+  const code = link.split('#invito=')[1]
+  assert.equal(Buffer.from(code.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString(), EXEC)
+  assert.ok(link.startsWith(APP))
+  assert.ok(m.htmlBody.includes('Apri il Menu di famiglia'))
+  // inviting again only resends the mail
+  s.post({ id_token: 'MAMMA', action: 'inviteMember', email: 'zio@example.com', app_url: APP, endpoint: EXEC })
+  assert.equal(s.props.ALLOWED, 'papa@example.com,zio@example.com')
+  assert.equal(s.mail.length, 2)
+})
+
+test('inviteMember checks its input and who asks', () => {
+  const s = setup()
+  const invite = (who, extra) => s.post({ id_token: who, action: 'inviteMember', email: 'x@example.com', app_url: APP, endpoint: EXEC, ...extra })
+  assert.equal(invite('PAPA').error, 'not_admin')
+  assert.equal(invite('MAMMA', { email: 'not-an-email' }).error, 'invalid_member')
+  assert.equal(invite('MAMMA', { app_url: 'http://evil.example.com/' }).error, 'invalid_member')
+  assert.equal(invite('MAMMA', { endpoint: 'https://evil.example.com/exec' }).error, 'invalid_member')
+  assert.equal(s.mail.length, 0)
+})
+
+test('removeMember takes access away at once; the owner cannot be removed', () => {
+  const s = setup()
+  const out = s.post({ id_token: 'MAMMA', action: 'removeMember', email: 'papa@example.com' })
+  assert.equal(out.ok, true)
+  assert.deepEqual(out.members.map(m => m.email), ['mamma@example.com'])
+  assert.equal(s.get({ resource: 'all', id_token: 'PAPA' }).status, 403)
+  assert.equal(s.post({ id_token: 'MAMMA', action: 'removeMember', email: 'mamma@example.com' }).error, 'invalid_member')
+  assert.equal(s.post({ id_token: 'MAMMA', action: 'removeMember', email: 'nobody@example.com' }).status, 404)
+})
+
+test('ADMINS can manage the family too', () => {
+  const s = loadScript({ files: { 'catalog.json': catalog, 'family-data.json': family }, tokens, admins: 'papa@example.com' })
+  assert.equal(s.post({ id_token: 'PAPA', action: 'listMembers' }).ok, true)
+})

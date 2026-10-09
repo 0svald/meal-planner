@@ -1,7 +1,7 @@
-// Copy to config.js (git-ignored) to preset the values for local development.
-// On GitHub Pages config.js does not exist: the same values are entered once in
-// the app's settings screen (⚙︎) and kept in that browser's localStorage.
+// Optional, for local development only: copy to config.js (git-ignored) to
+// preset the API address. Normally nobody types it: the family opens the
+// invitation link sent from Settings → Famiglia (the address travels in the
+// link's #fragment), and the OAuth client id is asked to the script itself.
 window.MENU_CONFIG = {
-  endpoint: 'https://script.google.com/macros/s/DEPLOYMENT_ID/exec',
-  clientId: 'CLIENT_ID.apps.googleusercontent.com'
+  endpoint: 'https://script.google.com/macros/s/DEPLOYMENT_ID/exec'
 }

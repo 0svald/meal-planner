@@ -2,11 +2,12 @@
 //
 // Same-origin GETs (the page, its modules, ../engine/, icons, fixtures) are
 // network-first: online you always get the latest published version, and every
-// successful answer refreshes the cache; offline the cached copy is served.
+// successful answer refreshes the cache, even one that arrives after the
+// timeout; offline (or after TIMEOUT_MS) the cached copy is served.
 // The Apps Script API and Google sign-in are cross-origin and never touched:
 // the app keeps its data in localStorage and saves fail clearly when offline.
 
-const CACHE = 'menu-famiglia-v1'
+const CACHE = 'menu-famiglia-v2'
 const SHELL = [
   './',
   './index.html',
@@ -28,7 +29,9 @@ const SHELL = [
 const TIMEOUT_MS = 4000
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()))
+  // cache: 'reload' skips the HTTP cache, so a new worker never stores old files.
+  const requests = SHELL.map(url => new Request(url, { cache: 'reload' }))
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(requests)).then(() => self.skipWaiting()))
 })
 
 self.addEventListener('activate', event => {
@@ -51,14 +54,25 @@ async function networkFirst (request, url) {
   // Pages opened from the share sheet or with ?demo carry a query string:
   // offline, any of them falls back to the cached page.
   const key = request.mode === 'navigate' ? new URL('./', self.location).href : url.href.split('?')[0]
-  try {
-    const response = await withTimeout(fetch(request), TIMEOUT_MS)
+  // no-cache: always ask the server (a cheap 304 when nothing changed) instead
+  // of reusing the browser's copy for the 10 minutes GitHub Pages allows.
+  const network = fetch(new Request(request, { cache: 'no-cache' })).then(response => {
     if (response.ok) cache.put(key, response.clone())
     return response
+  })
+  try {
+    return await withTimeout(network, TIMEOUT_MS)
   } catch {
+    // Slow or no network: serve the cached copy now; if the network answers
+    // later it still refreshes the cache for the next opening.
+    network.catch(() => {})
     const cached = await cache.match(key)
     if (cached) return cached
-    return new Response('', { status: 504, statusText: 'Offline' })
+    try {
+      return await network
+    } catch {
+      return new Response('', { status: 504, statusText: 'Offline' })
+    }
   }
 }
 

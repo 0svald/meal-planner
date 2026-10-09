@@ -93,26 +93,47 @@
   </dialog>
 
   <dialog id="settings">
-    <form method="dialog" id="settings-form">
+    <div class="settings">
       <h2>Impostazioni</h2>
-      <label>Indirizzo del servizio (Apps Script)
-        <input name="endpoint" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
-      </label>
-      <label>Client ID Google
-        <input name="clientId" type="text" placeholder="….apps.googleusercontent.com" autocomplete="off">
-      </label>
-      <p class="muted small">Restano salvati solo su questo telefono.</p>
-      <div id="install-box" class="install-box">
-        <button type="button" id="install-btn" class="secondary" hidden>Installa l'app sul telefono</button>
-        <p id="install-help" class="small muted"></p>
-      </div>
       <p id="settings-account" class="small"></p>
+
+      <section id="family-box" class="settings-section" hidden>
+        <h3>Famiglia</h3>
+        <ul id="members" class="members"></ul>
+        <form id="invite-form" class="invite-form">
+          <input name="email" type="email" required placeholder="indirizzo Gmail da invitare" autocomplete="off" aria-label="Email da invitare">
+          <button type="submit" class="primary" data-write>Invita</button>
+        </form>
+        <p class="small muted">Riceve una mail con il link all'app e può entrare solo con quell'account Google.</p>
+      </section>
+
+      <section class="settings-section">
+        <div id="install-box" class="install-box">
+          <button type="button" id="install-btn" class="secondary" hidden>Installa l'app sul telefono</button>
+          <p id="install-help" class="small muted"></p>
+        </div>
+        <div class="install-box">
+          <button type="button" id="update-btn" class="secondary">Aggiorna all'ultima versione</button>
+          <p id="app-version" class="small muted"></p>
+        </div>
+      </section>
+
+      <details id="advanced" class="settings-section">
+        <summary>Avanzate</summary>
+        <form id="advanced-form">
+          <label>Indirizzo dello script (Apps Script, finisce con /exec)
+            <input name="endpoint" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+          </label>
+          <p class="small muted">Serve solo al proprietario al primo accesso: gli altri entrano con il link d'invito.</p>
+          <button type="submit" class="secondary">Salva indirizzo</button>
+        </form>
+      </details>
+
       <div class="actions">
         <button type="button" id="signout-btn" class="secondary">Esci</button>
-        <button value="cancel" class="secondary">Annulla</button>
-        <button value="save" class="primary">Salva</button>
+        <button type="button" id="settings-close" class="primary">Chiudi</button>
       </div>
-    </form>
+    </div>
   </dialog>
 </body>
 </html>
