@@ -6,7 +6,6 @@ import { mergeData, canteenWeek, mondayOf, addDays, isoWeekId, weekdayOf, WEEKDA
 import { proposeWeek, evaluatePlan, slotOptions } from '../engine/planner.js'
 import { buildWeek, HOME_SLOTS } from '../engine/week.js'
 import { shoppingList, shoppingText, quantityNote, usesNote, AISLE_LABELS, AISLE_ORDER } from '../engine/shopping.js'
-import { wishlistView } from '../engine/wishlist.js'
 import { searchDishes, activeFilterCount } from '../engine/search.js'
 import { STORE, readJSON, writeJSON } from './storage.js'
 import * as api from './api.js'
@@ -23,7 +22,7 @@ const COURSE_LABELS = {
 }
 // Shown in the settings, to tell which version a phone runs. Bump on every
 // release: YYYY.MM.DD-N, N counting the releases of that day from 1.
-const APP_VERSION = '2026.10.09-8'
+const APP_VERSION = '2026.10.09-9'
 const MINOR_COURSES = new Set(['bread', 'fruit', 'dessert'])
 const DAY_NAMES = {
   mon: 'Lunedì', tue: 'Martedì', wed: 'Mercoledì', thu: 'Giovedì', fri: 'Venerdì', sat: 'Sabato', sun: 'Domenica'
@@ -806,7 +805,6 @@ async function changeWishes (call, done) {
 }
 
 function renderWishes () {
-  const wishes = wishlistView(state.data)
   const form = el('form', { class: 'wish-form' },
     el('label', {}, 'Ricetta',
       el('input', { name: 'name', type: 'text', required: true, maxlength: '80', placeholder: 'es. Polpette di lenticchie', autocomplete: 'off' })),
@@ -814,7 +812,7 @@ function renderWishes () {
       el('input', { name: 'url', type: 'url', maxlength: '500', placeholder: 'https://…', autocomplete: 'off' })),
     el('label', {}, 'Nota (facoltativa)',
       el('input', { name: 'note', type: 'text', maxlength: '300', placeholder: 'es. senza forno, piaciuta dai nonni', autocomplete: 'off' })),
-    el('button', { type: 'submit', class: 'primary', 'data-write': true }, 'Aggiungi alla lista'))
+    el('button', { type: 'submit', class: 'primary', 'data-write': true }, 'Proponi'))
   form.addEventListener('submit', event => {
     event.preventDefault()
     const wish = { name: form.name.value.trim(), url: form.url.value.trim(), note: form.note.value.trim() }
@@ -826,29 +824,6 @@ function renderWishes () {
     })
   })
 
-  const card = w => el('li', { class: `wish ${w.status}` },
-    el('div', { class: 'wish-head' },
-      w.url
-        ? el('a', { href: w.url, target: '_blank', rel: 'noopener noreferrer', class: 'wish-name' }, w.name)
-        : el('span', { class: 'wish-name' }, w.name),
-      el('span', { class: 'badge' }, w.status === 'added' ? 'nel catalogo' : 'in attesa')),
-    w.note ? el('p', { class: 'wish-note' }, w.note) : null,
-    w.status === 'added'
-      ? el('p', { class: 'small muted' }, `Aggiunta come: ${w.dishes.map(d => d.name).join(', ')}`)
-      : null,
-    el('div', { class: 'wish-foot' },
-      el('span', { class: 'small muted' },
-        [w.added_by ? `da ${w.added_by.split('@')[0]}` : '', w.added_at ? dateTime(w.added_at) : ''].filter(Boolean).join(' · ')),
-      el('button', {
-        type: 'button',
-        class: 'link-btn',
-        'data-write': true,
-        onclick: () => {
-          if (confirm(`Rimuovere «${w.name}» dalla lista?`)) changeWishes(() => api.removeWish(w.id))
-        }
-      }, 'Rimuovi')))
-
-  const pending = wishes.filter(w => w.status === 'pending').length
   // A link shared from another app (Android share sheet) fills the form once.
   if (state.sharePrefill) {
     state.wishFormOpen = true
@@ -859,31 +834,25 @@ function renderWishes () {
     setTimeout(() => form.name.focus(), 0)
   }
 
-  $('#wishes-view').replaceChildren(...[
-    el('section', { class: 'aisle' },
-      el('div', { class: 'section-head' },
-        el('h2', {}, 'Ricette da provare'),
-        el('button', {
-          type: 'button',
-          class: state.wishFormOpen ? 'add-btn open' : 'add-btn',
-          'aria-expanded': String(Boolean(state.wishFormOpen)),
-          'aria-label': state.wishFormOpen ? 'Chiudi' : 'Aggiungi una ricetta da provare',
-          onclick: () => {
-            state.wishFormOpen = !state.wishFormOpen
-            render()
-            if (state.wishFormOpen) setTimeout(() => $('.wish-form input[name=name]').focus(), 0)
-          }
-        }, '+')),
+  const addButton = el('button', {
+    type: 'button',
+    class: state.wishFormOpen ? 'add-btn open' : 'add-btn',
+    'aria-expanded': String(Boolean(state.wishFormOpen)),
+    'aria-label': state.wishFormOpen ? 'Chiudi' : 'Proponi una nuova ricetta',
+    onclick: () => {
+      state.wishFormOpen = !state.wishFormOpen
+      render()
+      if (state.wishFormOpen) setTimeout(() => $('.wish-form input[name=name]').focus(), 0)
+    }
+  }, '+')
+  const proposal = state.wishFormOpen
+    ? el('div', { class: 'wish-box' },
       el('p', { class: 'small muted' },
-        'Segna qui le ricette da aggiungere al menu. Poi in chat chiedi all\'assistente del menu ' +
-        '«carica le ricette della lista»: le classifica, ti chiede conferma e le aggiunge al catalogo.'),
-      state.wishFormOpen ? form : null),
-    wishes.length
-      ? el('p', { class: 'small muted' }, `${pending} in attesa, ${wishes.length - pending} già nel catalogo.`)
-      : el('p', { class: 'small muted' }, 'La lista è vuota.'),
-    wishes.length ? el('ul', { class: 'wishes' }, wishes.map(card)) : null,
-    renderCatalog()
-  ].filter(Boolean))
+        'Proponi una ricetta nuova: in chat chiedi poi all\'assistente del menu «carica le ricette della lista», ' +
+        'la classifica e la aggiunge qui.'),
+      form)
+    : null
+  $('#wishes-view').replaceChildren(renderCatalog({ addButton, proposal }))
 }
 
 // --- catalog: look up and correct dishes ----------------------------------------
@@ -936,7 +905,7 @@ function dishLine (dish) {
   return bits.join(' · ')
 }
 
-function renderCatalog () {
+function renderCatalog ({ addButton = null, proposal = null } = {}) {
   const filters = state.catalogFilters = state.catalogFilters || { text: '', without: [] }
   const list = el('ul', { class: 'catalog-list' })
   const count = el('p', { class: 'small muted catalog-count', 'aria-live': 'polite' })
@@ -998,7 +967,8 @@ function renderCatalog () {
   })
   fill()
   return el('section', { class: 'aisle catalog' },
-    el('h2', {}, 'Tutte le ricette'),
+    el('div', { class: 'section-head' }, el('h2', {}, 'Ricette'), addButton),
+    proposal,
     el('p', { class: 'small muted' },
       'Tocca una ricetta per vederla. Quelle di casa si possono correggere; quelle della mensa no, ' +
       'ma puoi crearne una variante. Le modifiche valgono subito per proposte e spesa.'),
