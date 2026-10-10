@@ -774,3 +774,29 @@ button.danger { color: var(--error); border-color: var(--error); }
 .rules li + li { border-top: 1px solid var(--border); }
 .rules li.off .rule-text { color: var(--muted); text-decoration: line-through; }
 .rule-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* --- week: the plan actions stay at the top while scrolling --- */
+
+.plan-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: -12px -16px 8px;
+  padding: 8px 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.plan-toolbar button {
+  min-height: 44px;
+  padding: 4px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 0.85rem;
+  line-height: 1.15;
+}
+.plan-toolbar .primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.plan-toolbar button:disabled { opacity: 0.5; }
