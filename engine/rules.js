@@ -103,10 +103,13 @@ export function frequency (rule, week) {
 //   when: 'next_day'           -> dinner and the next day's lunch (Sunday
 //                                 dinner and the next Monday's canteen lunch).
 // Alike = they share a group of `groups`, or, with `same_dish: true`, the same
-// first, second or single dish.
+// first, second or single dish. With `cross: true` the groups exclude each
+// other instead: one of them in the first meal rules out the *other* groups in
+// the second (groups: ['fish', 'meat'] -> fish at lunch, no meat at dinner, and
+// the other way round); the same group twice is left to other rules.
 
 export function complement (rule, week) {
-  const { groups = [], when = 'same_day', same_dish: sameDish = false } = rule.params
+  const { groups = [], when = 'same_day', same_dish: sameDish = false, cross = false } = rule.params
   const find = (weekday, slot) => week.meals.find(m => m.weekday === weekday && m.slot === slot)
   const pairs = WEEKDAYS.map((weekday, i) => when === 'next_day'
     ? [find(weekday, 'dinner'), i < 6 ? find(WEEKDAYS[i + 1], 'lunch') : week.nextMondayLunch]
@@ -117,7 +120,23 @@ export function complement (rule, week) {
     if (!first || !second || !first.dishes.length || !second.dishes.length) continue
     const a = mealGroups(first)
     const b = mealGroups(second)
-    const sharedGroups = groups.filter(g => a.has(g) && b.has(g)).map(g => (GROUP_LABELS[g] || g).toLowerCase())
+    const label = g => (GROUP_LABELS[g] || g).toLowerCase()
+    if (cross) {
+      const clash = groups.flatMap(g1 => groups.filter(g2 => g2 !== g1 && a.has(g1) && b.has(g2)).map(g2 => [g1, g2]))
+      if (!clash.length) continue
+      const dinner = first.slot === 'dinner' ? first : second
+      const what = clash.map(([g1, g2]) => `${label(g1)} a ${first.slot === 'lunch' ? 'pranzo' : 'cena'} e ${label(g2)} a ${second.slot === 'lunch' ? 'pranzo' : 'cena'}`)
+      out.push(result(rule, {
+        satisfied: false,
+        penalty: clash.length * BOUND,
+        slot: slotKey(dinner),
+        detail: when === 'next_day'
+          ? `${what.join(', ')} (cena ${DAY_SHORT[first.weekday]}, pranzo ${DAY_SHORT[second.weekday]})`
+          : `${DAY_SHORT[first.weekday]}: ${what.join(', ')}`
+      }))
+      continue
+    }
+    const sharedGroups = groups.filter(g => a.has(g) && b.has(g)).map(label)
     const sharedDishes = []
     if (sameDish) {
       const ids = new Set(second.dishes.filter(d => VARIETY_COURSES.has(d.course)).map(d => d.id))
@@ -139,7 +158,9 @@ export function complement (rule, week) {
   if (out.length) return out
   return [result(rule, {
     satisfied: true,
-    detail: when === 'next_day' ? 'La cena non ripete il pranzo del giorno dopo' : 'Pranzo e cena si completano'
+    detail: cross
+      ? `${groups.map(g => GROUP_LABELS[g] || g).join(' e ')}: mai insieme nello stesso giorno`
+      : when === 'next_day' ? 'La cena non ripete il pranzo del giorno dopo' : 'Pranzo e cena si completano'
   })]
 }
 

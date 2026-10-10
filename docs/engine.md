@@ -38,7 +38,7 @@ missing), `soft` or `hard`. `detail` is Italian and goes to the UI as is.
 | Type | Reading |
 | --- | --- |
 | `frequency` | meals of the week in the group. `children`: canteen + home; `adults`: home only; `family`: all. Out of `min`/`max` = not satisfied; missing the `target` only costs score. |
-| `complement` | two meals close in time are not alike. `when: same_day` (default): lunch and dinner of the same day. `when: next_day`: dinner and the next day's lunch (Sunday dinner and the next Monday's canteen lunch). Alike = they share a group of `groups`, or, with `same_dish: true`, the same first, second or single dish. |
+| `complement` | two meals close in time are not alike. `when: same_day` (default): lunch and dinner of the same day. `when: next_day`: dinner and the next day's lunch (Sunday dinner and the next Monday's canteen lunch). Alike = they share a group of `groups`, or, with `same_dish: true`, the same first, second or single dish. With `cross: true` the groups exclude each other: one in the first meal rules out the other groups in the second ("se a pranzo c'è pesce a cena non c'è carne, e viceversa"). |
 | `exclusion` | substring, case-insensitive, on ingredient names **and the dish name**. Home meals only: the canteen is not the family's choice. |
 | `time_limit` | sum of the `prep_minutes` of the meal's dishes on `days`. A dish **without `prep_minutes` fails** (nobody said it is quick); takeaway needs no preparation. |
 | `variety` | days since a dish was last eaten, in a confirmed plan or earlier in the same week. Only firsts, seconds and single dishes: sides may repeat. Canteen lunches do not count. |

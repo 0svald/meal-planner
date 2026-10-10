@@ -264,6 +264,21 @@
         "when": "next_day",
         "same_dish": true
       }
+    },
+    {
+      "id": "pesce-carne-stesso-giorno",
+      "type": "complement",
+      "priority": "hard",
+      "origin": "family",
+      "enabled": true,
+      "description": "Se a pranzo c'è pesce a cena non c'è carne, e viceversa",
+      "params": {
+        "groups": [
+          "fish",
+          "meat"
+        ],
+        "cross": true
+      }
     }
   ],
   "pantry": [

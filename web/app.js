@@ -22,7 +22,7 @@ const COURSE_LABELS = {
 }
 // Shown in the settings, to tell which version a phone runs. Bump on every
 // release: YYYY.MM.DD-N, N counting the releases of that day from 1.
-const APP_VERSION = '2026.10.09-9'
+const APP_VERSION = '2026.10.10-1'
 const MINOR_COURSES = new Set(['bread', 'fruit', 'dessert'])
 const DAY_NAMES = {
   mon: 'Lunedì', tue: 'Martedì', wed: 'Mercoledì', thu: 'Giovedì', fri: 'Venerdì', sat: 'Sabato', sun: 'Domenica'
@@ -1283,9 +1283,43 @@ function openSettings () {
   $('#app-version').textContent = `Versione dell'app: ${APP_VERSION}`
   $('#family-box').hidden = !state.admin
   $('#advanced').open = !api.config().endpoint
+  $('#invite-box').open = false
+  renderRules()
   if (state.admin) loadMembers()
   applyOnlineState()
   $('#settings').showModal()
+}
+
+// --- rules (read only: they live in family-data.json, kept by the skill) -------
+
+const RULE_TYPE_LABELS = {
+  frequency: 'Frequenza',
+  complement: 'Pranzo e cena',
+  exclusion: 'Ingredienti esclusi',
+  variety: 'Varietà',
+  time_limit: 'Tempo',
+  takeaway: 'Asporto',
+  meal_structure: 'Struttura del pasto'
+}
+
+function renderRules () {
+  const rules = (state.data && state.data.rules) || []
+  const active = rules.filter(r => r.enabled !== false)
+  $('#rules-summary').textContent = `Regole della famiglia (${active.length})`
+  const group = (title, note, list) => list.length
+    ? el('section', { class: 'rules-group' },
+      el('h3', {}, title, el('span', { class: 'small muted' }, ` · ${note}`)),
+      el('ul', { class: 'rules' }, list.map(r => el('li', { class: r.enabled === false ? 'off' : '' },
+        el('span', { class: 'rule-text' }, r.description || r.id),
+        el('span', { class: 'rule-tags' },
+          el('span', { class: 'badge muted' }, RULE_TYPE_LABELS[r.type] || r.type),
+          r.origin === 'crea' ? el('span', { class: 'badge' }, 'CREA') : null,
+          r.enabled === false ? el('span', { class: 'badge warn' }, 'disattivata') : null)))))
+    : null
+  $('#rules-list').replaceChildren(...[
+    group('Sempre', 'le proposte non le violano mai', rules.filter(r => r.priority === 'hard')),
+    group('Se possibile', 'le proposte cercano di rispettarle', rules.filter(r => r.priority !== 'hard'))
+  ].filter(Boolean))
 }
 
 // --- family (owner only) -------------------------------------------------------

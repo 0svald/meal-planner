@@ -126,7 +126,7 @@ Lists may be empty (a salad has no proteins). Meanings in `taxonomy.md`.
 | type | params |
 | --- | --- |
 | frequency | `group` (see taxonomy.md), `applies_to` children\|adults\|family, at least one of `min` `target` `max` (times per week, lunch + dinner) |
-| complement | `groups`: a group eaten at lunch is excluded at dinner the same day |
+| complement | `groups`: a group eaten at lunch is excluded at dinner the same day; `when: next_day` compares dinner with the next lunch; `same_dish: true` also forbids the same dish; `cross: true` makes the groups exclude each other instead (`["fish", "meat"]`: fish at lunch, no meat at dinner, and the other way round) |
 | exclusion | `ingredients`: substring match on ingredient names |
 | variety | `min_days_between_repeats` |
 | time_limit | `max_prep_minutes`, `days` |
