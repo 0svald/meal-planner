@@ -3,11 +3,17 @@
 // Same-origin GETs (the page, its modules, ../engine/, icons, fixtures) are
 // network-first: online you always get the latest published version, and every
 // successful answer refreshes the cache, even one that arrives after the
-// timeout; offline (or after TIMEOUT_MS) the cached copy is served.
+// timeout.
+//
+// The page and its files must come from the same version, or a new page meets
+// an old stylesheet or module. So only the page itself has a timeout: when it
+// arrives from the network, its files wait for the network too (the cache only
+// if the network fails); when it is too slow or offline, the cached page is
+// served and, for the next few seconds, its files come from the cache as well.
 // The Apps Script API and Google sign-in are cross-origin and never touched:
 // the app keeps its data in localStorage and saves fail clearly when offline.
 
-const CACHE = 'menu-famiglia-v2'
+const CACHE = 'menu-famiglia-v3'
 const SHELL = [
   './',
   './index.html',
@@ -24,9 +30,13 @@ const SHELL = [
   '../engine/rules.js',
   '../engine/planner.js',
   '../engine/shopping.js',
-  '../engine/wishlist.js'
+  '../engine/wishlist.js',
+  '../engine/search.js'
 ]
 const TIMEOUT_MS = 4000
+// After the cached page was served, its files are taken from the cache too.
+const CACHED_PAGE_WINDOW_MS = 15000
+let cachedPageAt = 0
 
 self.addEventListener('install', event => {
   // cache: 'reload' skips the HTTP cache, so a new worker never stores old files.
@@ -60,9 +70,19 @@ async function networkFirst (request, url) {
     if (response.ok) cache.put(key, response.clone())
     return response
   })
+  const isPage = request.mode === 'navigate'
+  if (!isPage && Date.now() - cachedPageAt < CACHED_PAGE_WINDOW_MS) {
+    // The page came from the cache: keep its files from the same version.
+    network.catch(() => {})
+    const cached = await cache.match(key)
+    if (cached) return cached
+  }
   try {
-    return await withTimeout(network, TIMEOUT_MS)
+    const response = await (isPage ? withTimeout(network, TIMEOUT_MS) : network)
+    if (isPage) cachedPageAt = 0
+    return response
   } catch {
+    if (isPage) cachedPageAt = Date.now()
     // Slow or no network: serve the cached copy now; if the network answers
     // later it still refreshes the cache for the next opening.
     network.catch(() => {})
