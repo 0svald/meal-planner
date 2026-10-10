@@ -762,3 +762,15 @@ body.tab-today main { touch-action: pan-y; }
 button.danger { color: var(--error); border-color: var(--error); }
 .wish-box { margin: 4px 0 12px; padding: 10px; border: 1px solid var(--border); border-radius: 12px; }
 .wish-box p { margin: 0; }
+
+/* --- settings: rules, invite --- */
+
+#invite-box summary, #rules-box summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+#invite-box[open] summary { margin-bottom: 6px; }
+.settings:focus { outline: none; }
+.rules-group h3 { margin: 10px 0 4px; font-size: 0.95rem; }
+.rules { list-style: none; margin: 0; padding: 0; }
+.rules li { display: grid; gap: 4px; padding: 8px 0; }
+.rules li + li { border-top: 1px solid var(--border); }
+.rules li.off .rule-text { color: var(--muted); text-decoration: line-through; }
+.rule-tags { display: flex; flex-wrap: wrap; gap: 4px; }

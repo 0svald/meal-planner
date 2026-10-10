@@ -77,3 +77,22 @@ test('same_day is the default and ignores the next day', () => {
   const [r] = complement(rule, weekOf(data, { 'mon/dinner': ['pesce'] }))
   assert.equal(r.satisfied, true)
 })
+
+const cross = { id: 'x', type: 'complement', priority: 'hard', params: { groups: ['fish', 'meat'], cross: true } }
+
+test('cross: fish at lunch rules out meat at dinner, and the other way round', () => {
+  const data = makeData({ dishes, canteen: { mon: ['pesce'], tue: ['pollo'] } })
+  const results = complement(cross, weekOf(data, { 'mon/dinner': ['manzo'], 'tue/dinner': ['pesce'], 'wed/dinner': ['pollo'] }))
+  assert.deepEqual(results.map(r => [r.slot, r.detail]), [
+    ['2026-09-28/dinner', 'lun: pesce a pranzo e carne a cena'],
+    ['2026-09-29/dinner', 'mar: carne a pranzo e pesce a cena']
+  ])
+  assert.ok(results.every(r => r.severity === 'hard'))
+})
+
+test('cross: the same group twice and other groups are left alone', () => {
+  const data = makeData({ dishes, canteen: { mon: ['pesce'], tue: ['pasta'] } })
+  const [r] = complement(cross, weekOf(data, { 'mon/dinner': ['pesce'], 'tue/dinner': ['manzo'] }))
+  assert.equal(r.satisfied, true)
+  assert.equal(r.detail, 'Pesce e Carne: mai insieme nello stesso giorno')
+})
