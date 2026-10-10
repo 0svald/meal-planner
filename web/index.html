@@ -35,6 +35,12 @@
     <section id="week" hidden>
       <div id="today-view" hidden></div>
 
+      <div id="plan-toolbar" class="plan-toolbar" role="toolbar" aria-label="Azioni sulla settimana" hidden>
+        <button id="propose-btn" type="button" class="secondary">Nuova proposta</button>
+        <button id="save-btn" type="button" class="secondary" data-write>Salva bozza</button>
+        <button id="confirm-btn" type="button" class="primary" data-write>Conferma menu</button>
+      </div>
+
       <nav class="week-nav" aria-label="Settimana">
         <button id="prev-week" type="button" aria-label="Settimana precedente">‹</button>
         <div class="week-title">
@@ -50,12 +56,7 @@
       <div id="plan-view">
       <div class="plan-bar">
         <p id="plan-status" class="small muted"></p>
-        <div class="plan-actions">
-          <button id="save-btn" type="button" class="secondary" data-write>Salva bozza</button>
-          <button id="confirm-btn" type="button" class="primary" data-write>Conferma settimana</button>
-        </div>
         <div class="plan-links">
-          <button id="propose-btn" type="button" class="link-btn">Nuova proposta</button>
           <button id="discard-btn" type="button" class="link-btn" hidden>Annulla modifiche</button>
         </div>
       </div>

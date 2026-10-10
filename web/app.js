@@ -22,7 +22,7 @@ const COURSE_LABELS = {
 }
 // Shown in the settings, to tell which version a phone runs. Bump on every
 // release: YYYY.MM.DD-N, N counting the releases of that day from 1.
-const APP_VERSION = '2026.10.10-1'
+const APP_VERSION = '2026.10.10-2'
 const MINOR_COURSES = new Set(['bread', 'fruit', 'dessert'])
 const DAY_NAMES = {
   mon: 'Lunedì', tue: 'Martedì', wed: 'Mercoledì', thu: 'Giovedì', fri: 'Venerdì', sat: 'Sabato', sun: 'Domenica'
@@ -391,6 +391,7 @@ function renderView () {
   document.body.classList.toggle('tab-today', state.tab === 'today')
   $('#week').hidden = false
   $('#bottom-nav').hidden = false
+  $('#plan-toolbar').hidden = state.tab !== 'plan'
   for (const tab of TABS) {
     if (state.tab === tab) $(`#nav-${tab}`).setAttribute('aria-current', 'page')
     else $(`#nav-${tab}`).removeAttribute('aria-current')
